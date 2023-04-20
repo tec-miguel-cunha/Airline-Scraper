@@ -35,32 +35,63 @@ class RyanAir:
             print(f'Error closing cookies: {e}')
             pass
 
+
         # get the page source
         page = self.driver.page_source
 
         # parse the page source
         soup = BeautifulSoup(page, 'html.parser')
 
-        try:
-            # get the departure and return dates
-            departure_day = soup.find_all('span',
-                                      class_='date-item__day-of-month date-item__day-of-month--selected body-xl-lg body-xl-sm')[0].text
-            departure_month = soup.find_all('span',
-                                        class_='date-item__month date-item__month--selected body-xl-lg body-xl-sm')[0].text
-            departure_date = f'{departure_day} {departure_month}'
 
-        except Exception as e:
-            pass
+        # get the departure and return dates
+        day = soup.find_all('span',
+                                  class_='date-item__day-of-month date-item__day-of-month--selected body-xl-lg body-xl-sm')
 
-        try:
-            return_day = soup.find_all('span',
-                                   class_='date-item__day-of-month date-item__day-of-month--selected body-xl-lg body-xl-sm')[1].text
-            return_month = soup.find_all('span',
-                                     class_='date-item__month date-item__month--selected body-xl-lg body-xl-sm')[1].text
-            return_date = f"{return_day} {return_month}"
-        except Exception as e:
-            retun_date = flyback
+        if len(day) == 1:
+            day = soup.find('span',
+                                class_='date-item__day-of-month date-item__day-of-month--selected body-xl-lg body-xl-sm').text
+            month = soup.find('span',
+                                  class_='date-item__month date-item__month--selected body-xl-lg body-xl-sm').text
+            months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+            date = f'{day} {months.index(month)+1}'
 
+            if date == flyout:
+                return_date = 'No flights available on Return date'
+                departure_date = f'{day} {month}'
+
+                # get departure and arrival times
+                departure_flyout_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[0].text.replace(' ', '')
+                arrival_flyout_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[1].text.replace(' ', '')
+
+                departure_flyback_times = 'N/A'
+                arrival_flyback_times = 'N/A'
+
+            elif date == flyback:
+                departure_date = 'No flights available on Departure date'
+                return_date = f'{day} {month}'
+
+                # get departure and arrival times
+                departure_flyout_times = 'N/A'
+                arrival_flyout_times = 'N/A'
+
+                departure_flyback_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[0].text.replace(' ', '')
+                arrival_flyback_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[1].text.replace(' ', '')
+            else:
+                day = soup.find_all('span', class_='date-item__day-of-month body-xl-lg body-xl-sm')
+        else:
+            day = soup.find_all('span',
+                                class_='date-item__day-of-month date-item__day-of-month--selected body-xl-lg body-xl-sm')
+            month = soup.find_all('span',
+                                  class_='date-item__month date-item__month--selected body-xl-lg body-xl-sm')
+            departure_date = f'{day[0].text} {month[0].text}'
+            return_date = f'{day[1].text} {month[1].text}'
+
+            # get departure and arrival times
+            departure_flyout_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[0].text.replace(' ', '')
+            arrival_flyout_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[1].text.replace(' ','')
+
+            departure_flyback_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[1].text.replace(' ', '')
+            arrival_flyback_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[2].text.replace(' ', '')
 
         # get the prices
         prices = []
@@ -72,26 +103,11 @@ class RyanAir:
             # append to the list
             prices.append(price)
 
-        try:
-            # get departure and arrival times
-            departure_flyout_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[0].text.replace(' ', '')
-            arrival_flyout_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[1].text.replace(' ', '')
-        except Exception as e:
-            departure_flyout_times = 'N/A'
-            arrival_flyout_times = 'N/A'
-
-        try:
-            departure_flyback_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[1].text.replace(' ','')
-            arrival_flyback_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[2].text.replace(' ', '')
-        except Exception as e:
-            departure_flyback_times = 'N/A'
-            arrival_flyback_times = 'N/A'
-
         # create the dictionary
-        prices = [{'Departure': {'date': departure_date, 'departure_time': departure_flyout_times, 'arrival_time': arrival_flyout_times, 'price': prices[0], }},
-                  {'Return': {'Date': return_date, 'departure_time': departure_flyback_times, 'arrival_time': arrival_flyback_times, 'price': prices[1]}}]
-        # return the dictionary
+        prices = [{'Departure': {'date': departure_date, 'departure_time': departure_flyout_times, 'arrival_time': arrival_flyout_times, 'price': prices[0], }}, {'Return': {'date': return_date, 'departure_time': departure_flyback_times, 'arrival_time': arrival_flyback_times, 'price': prices[1], }}]
+
         return prices
+
 
     # close the driver
     def close(self):
@@ -104,11 +120,10 @@ if __name__ == '__main__':
     ryanair = RyanAir(headless=True)
 
     # get the data
-    prices= ryanair.return_flight('2023-05-24', '2023-06-08', 'MAN', 'VLC', '2')
+    prices= ryanair.return_flight('2023-05-25', '2023-06-07', 'MAN', 'VLC', '2')
 
     # print the data
     print(prices)
 
     # close the driver
     ryanair.close()
-
