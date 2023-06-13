@@ -73,4 +73,4 @@ This method returns a list of dictionaries containing flight information, includ
 
 ## License
 
-This code is released under the MIT License.
+This code is released under the GPL-3.0 License.
