@@ -14,10 +14,12 @@ import chromedriver_autoinstaller
 import json
 import re
 from datetime import datetime
+import csv
 
-timeout = 30
+timeout = 10
 timeout_cookies = 1.5
 timeout_little = 1
+timeout_implicitly_wait = 5
 cookies = "not accepted"
 buttons = []
 
@@ -64,6 +66,37 @@ var config = { childList: true, subtree: true };
 observer.observe(document.body, config);
 """
 
+def flatten_dict(d, parent_key='', sep='_'):
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        elif isinstance(v, list):
+            if len(v) == 1 and isinstance(v[0], dict):
+                # Flatten the single dictionary element in the list
+                items.extend(flatten_dict(v[0], new_key, sep=sep).items())
+            else:
+                for i, item in enumerate(v):
+                    if isinstance(item, dict):
+                        items.extend(flatten_dict(item, f"{new_key}_{i}", sep=sep).items())
+                    else:
+                        items.append((f"{new_key}_{i}", item))
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+def write_to_csv_row(writer, data, first=False):
+    # Flatten the details and seats data
+    flattened_data = flatten_dict(data)
+    if first:
+        # Write the header row
+        header = list(flattened_data.keys())
+        writer.writerow(header)
+    row = list(flattened_data.values())
+    # Write the row to the CSV file
+    writer.writerow(row)
+
 def check_and_close_popup(driver):
     try:
         # Check for overlay element
@@ -108,8 +141,9 @@ def is_element_in_view(driver, element):
 
 def check_element_exists_by_ID(driver, id):
     element_exists = False
+    print(f'Checking if element exists by ID: {id}')
     try:
-        WebDriverWait(driver, timeout=timeout_little).until(EC.presence_of_element_located((By.ID, id)))
+        WebDriverWait(driver, timeout=0.5).until(EC.presence_of_element_located((By.ID, id)))
         print("Passed WebDriverWait")
     except Exception as e:
         print(f'No element by ID: {e}')
@@ -118,8 +152,9 @@ def check_element_exists_by_ID(driver, id):
 
 def check_element_exists_by_CSS_SELECTOR(driver, css):
     element_exists = False
+    print(f'Checking if element exists by CSS: {css}')
     try:
-        WebDriverWait(driver, timeout=timeout_little).until(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
+        WebDriverWait(driver, timeout=0.5).until(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
         driver.find_element(By.CSS_SELECTOR, css)
         element_exists = True
     except Exception as e:
@@ -129,8 +164,9 @@ def check_element_exists_by_CSS_SELECTOR(driver, css):
 
 def check_element_exists_by_TAG_NAME(driver, tag):
     element_exists = False
+    print(f'Checking if element exists by Tag Name: {tag}')
     try:
-        WebDriverWait(driver, timeout=timeout_little).until(EC.presence_of_element_located((By.TAG_NAME, tag)))
+        WebDriverWait(driver, timeout=0.5).until(EC.presence_of_element_located((By.TAG_NAME, tag)))
         driver.find_element(By.TAG_NAME, tag)
         element_exists = True
     except Exception as e:
@@ -139,6 +175,15 @@ def check_element_exists_by_TAG_NAME(driver, tag):
     return element_exists
 
 class TAP:
+
+    # TODO: 
+    # - Add sold out logic in get_flight_seats function
+    # - Add sold out logic to get_flight_details function (aria-label*='sold out')
+    # - Problem with CSV writing whole dictionary instead of individual values (flatten the dictionary)
+    ## - Add button logic to the fill_home_page_form function
+    ## - Add button logic to the get_flight_seats function
+    ## - Add print and timeout to inputs.py and implement logic
+    ## - Add a way to check if the buttons are in view and scroll them into view if they are not
 
     buttons = []
 
@@ -258,6 +303,7 @@ class TAP:
         return False
 
     def click_buttons_in_reverse_order(self):
+        self.driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.ESCAPE)
         n = len(self.buttons)
         for i in range(n):
             for attempt in range(3):
@@ -327,7 +373,7 @@ class TAP:
         # get the page
         self.driver.get(url)
         print('Opened TAP homepage')
-        self.driver.implicitly_wait(timeout)
+        self.driver.implicitly_wait(timeout_implicitly_wait)
 
         # get the page source
         page = self.driver.page_source
@@ -345,13 +391,24 @@ class TAP:
                     print('No cookies banner found')
             except Exception as e:
                 print(f'Error accepting cookies: {e}')
+                self.fill_home_page_form(flyout, orig, dest)
 
         try:
             WebDriverWait(self.driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[aria-label*='One way']")))
             self.driver.find_element(By.CSS_SELECTOR, "[aria-label*='One way']").click()
             print('Clicked on One Way')
         except Exception as e:
+            if check_element_exists_by_TAG_NAME(self.driver, 'app-stopover-modal'):
+                try:
+                    self.driver.find_element(By.CSS_SELECTOR, "[aria-label*='Close dialog']").click()
+                    print('Closed Stopover Modal')
+                except Exception as e:
+                    print(f'Error closing Stopover Modal: {e}')
+                self.driver.find_element(By.CSS_SELECTOR, "[aria-label*='One way']").click()
+                print('Clicked on One Way')
+            else:
                 print(f'Error clicking on One Way: {e}')
+                self.fill_home_page_form(flyout, orig, dest)
 
         try:
             WebDriverWait(self.driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[id*='flight-search-from']")))
@@ -366,7 +423,23 @@ class TAP:
             self.driver.find_element(By.CSS_SELECTOR, "[class*='form-control bsdatepicker']").send_keys(flyout + Keys.RETURN)
             print('Entered departure date')
         except Exception as e:
-            print(f'Error entering origin, destination or date: {e}')
+            if check_element_exists_by_TAG_NAME(self.driver, 'app-stopover-modal'):
+                try:
+                    self.driver.find_element(By.CSS_SELECTOR, "[aria-label*='Close dialog']").click()
+                    print('Closed Stopover Modal')
+                except Exception as e:
+                    print(f'Error closing Stopover Modal: {e}')
+                self.driver.find_element(By.CSS_SELECTOR, "[id*='flight-search-from']").clear()
+                self.driver.find_element(By.CSS_SELECTOR, "[id*='flight-search-from']").send_keys(orig + Keys.RETURN)
+                print('Entered origin')
+                WebDriverWait(self.driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[id*='flight-search-to']")))
+                self.driver.find_element(By.CSS_SELECTOR, "[id*='flight-search-to']").send_keys(dest + Keys.RETURN)
+                print('Entered destination')
+                self.driver.find_element(By.CSS_SELECTOR, "[class*='form-control bsdatepicker']").send_keys(flyout + Keys.RETURN)
+                print('Entered departure date')
+            else:
+                print(f'Error entering origin, destination or date: {e}')
+                self.fill_home_page_form(flyout, orig, dest)
 
         # Open Search Page
         try:
@@ -374,10 +447,22 @@ class TAP:
             self.driver.find_element(By.CSS_SELECTOR, "[aria-label*='Continue to next page to select dates']").click()
             print('Clicked on Search Button')
         except Exception as e:
-            print(f'Error clicking on Search Button: {e}')
+            if check_element_exists_by_TAG_NAME(self.driver, 'app-stopover-modal'):
+                try:
+                    self.driver.find_element(By.CSS_SELECTOR, "[aria-label*='Close dialog']").click()
+                    print('Closed Stopover Modal')
+                except Exception as e:
+                    print(f'Error closing Stopover Modal: {e}')
+                self.driver.find_element(By.CSS_SELECTOR, "[aria-label*='Continue to next page to select dates']").click()
+                print('Clicked on Search Button')
+            else:
+                print(f'Error clicking on Search Button: {e}')
+                self.fill_home_page_form(flyout, orig, dest)
 
         print('Exiting Fill Form Function')
         print('Going to next page')
+        if check_element_exists_by_TAG_NAME(self.driver, 'app-stopover-modal'):
+            self.fill_home_page_form(flyout, orig, dest)
 
     def get_flights(self):
         try:
@@ -398,6 +483,7 @@ class TAP:
             departure_date = departure_date_elements.find_elements(By.TAG_NAME, 'strong')[1].text
             print(f'Departure date: {departure_date}')
         except Exception as e:
+            departure_date = 'N/A'
             print(f'Error getting departure date: {e}')
         
         try:
@@ -406,6 +492,7 @@ class TAP:
             departure_flyout_times = departure_div.find_element(By.CSS_SELECTOR, "[class*='bold']").text
             print(f'Departure time: {departure_flyout_times}')
         except Exception as e:
+            departure_flyout_times = 'N/A'
             print(f'Error getting departure time: {e}')
         
         try:
@@ -413,6 +500,7 @@ class TAP:
             arrival_flyout_times = arrival_div.find_element(By.CSS_SELECTOR, "[class*='bold']").text
             print(f'Arrival time: {arrival_flyout_times}')
         except Exception as e:
+            arrival_flyout_times = 'N/A'
             print(f'Error getting arrival time: {e}')
         
         try:
@@ -421,6 +509,7 @@ class TAP:
             price_economy = price_economy_element.find_element(By.CSS_SELECTOR, "[class*='price']").text.replace(' USD', '')
             print(f'Price Economy: {price_economy}')
         except Exception as e:
+            price_economy = 'N/A'
             print(f'Error getting flight details: {e}')
 
         try:    
@@ -429,6 +518,7 @@ class TAP:
             price_business = price_business_element.find_element(By.CSS_SELECTOR, "[class*='price']").text.replace(' USD', '')
             print(f'Price Business: {price_business}')
         except Exception as e:
+            price_business = 'N/A'
             print(f'Error getting flight details: {e}')
         
         details = [{'Departure': {'date': departure_date, 
@@ -459,6 +549,7 @@ class TAP:
             area = popup_header.find_elements(By.TAG_NAME, 'p')[0].text
             print(f'Area: {area}')
         except Exception as e:
+            area = 'N/A'
             print(f'Error getting area: {e}')
 
         try:
@@ -466,39 +557,40 @@ class TAP:
             price = select_seat_form.find_element(By.CSS_SELECTOR, "[class*='bold']").text.split(' ', 1)[0]
             print(f'Price: {price}')
         except Exception as e:
+            price = 'N/A'
             print(f'Error getting price: {e}')
 
-        # TODO: Test this
-        try:
-            self.driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.ESCAPE)
-            if(not check_element_exists_by_ID(self.driver, 'selectPassenger')):
-                print('Closed popup')
-            else:
-                print('Popup still open: CORRECT THIS')
-        except Exception as e:
-            print(f'Error closing popup: {e}')
+        if not area == 'Executive' and not area == 'Standard':
+            try:
+                self.driver.find_element(By.TAG_NAME, 'body').send_keys(Keys.ESCAPE)
+                if(not check_element_exists_by_ID(self.driver, 'selectPassenger')):
+                    print('Closed popup')
+                else:
+                    print('Popup still open: CORRECT THIS')
+            except Exception as e:
+                print(f'Error closing popup: {e}')
         
-        if(not check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='app-sidebar is-open']")):
-            extra_element = self.driver.find_element(By.ID, 'SEAT_1')
-            open_seats_button = extra_element.find_element(By.CSS_SELECTOR, "[aria-label*='Open dialog to Choose']")
-            check_and_close_popup(self.driver)
-            open_seats_button.click()
-            print('Clicked to open seatmap')
-            if(check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='app-sidebar is-open']")):
-                print('Sidebar open successfully')
-                if(check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='seatmap__plane-wrapper']")):
-                    print('Seatmap loaded successfully')
-            else:
+            if(not check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='app-sidebar is-open']")):
                 extra_element = self.driver.find_element(By.ID, 'SEAT_1')
                 open_seats_button = extra_element.find_element(By.CSS_SELECTOR, "[aria-label*='Open dialog to Choose']")
                 check_and_close_popup(self.driver)
                 open_seats_button.click()
+                print('Clicked to open seatmap')
                 if(check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='app-sidebar is-open']")):
                     print('Sidebar open successfully')
                     if(check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='seatmap__plane-wrapper']")):
                         print('Seatmap loaded successfully')
-        else:
-            print('Sidebar still open')
+                else:
+                    extra_element = self.driver.find_element(By.ID, 'SEAT_1')
+                    open_seats_button = extra_element.find_element(By.CSS_SELECTOR, "[aria-label*='Open dialog to Choose']")
+                    check_and_close_popup(self.driver)
+                    open_seats_button.click()
+                    if(check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='app-sidebar is-open']")):
+                        print('Sidebar open successfully')
+                        if(check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='seatmap__plane-wrapper']")):
+                            print('Seatmap loaded successfully')
+            else:
+                print('Sidebar still open')
 
 
         return {
@@ -517,14 +609,14 @@ class TAP:
                 else:
                     print('Economy fare button does not exist')
                 self.buttons.append(economy_button)
-                economy_button.click()
+                self.driver.execute_script("arguments[0].click();", economy_button)
             else:
                 if(is_element_in_view(self.driver, business_button)):
                     print('Business fare button exists')
                 else:
                     print('Business fare button does not exist')
                 self.buttons.append(business_button)
-                business_button.click()
+                self.driver.execute_script("arguments[0].click();", business_button)
             print(f'Clicked on {fare} fare')
         except Exception as e:
             print(f'Error clicking on {fare} fare: {e}')
@@ -620,14 +712,14 @@ class TAP:
 
         try:
             print('Getting extras values')
-            extras_values = []
-            for extra_element in extras_elements:
-                lable_price = extra_element.find_element(By.CSS_SELECTOR, "[class*='label_price']")
+            extras_values = ['0', '0', '0']
+            for i in range(extras_elements):
+                lable_price = extras_elements[i].find_element(By.CSS_SELECTOR, "[class*='label_price']")
                 if ('free' in lable_price.text):
-                    extras_values.append('0')
+                    extras_values[i] = '0'
                 else:
                     price = re.findall(r'\d+', lable_price.text)
-                    extras_values.append(price[0] + ',' + price[1])
+                    extras_values[i] = price[0] + ',' + price[1]
             print(f'Extras values gotten successfully: {extras_values}')
         except Exception as e:
             print(f'Error getting extras values (Seat, Bag and Prefered Boarding): {e}')
@@ -715,9 +807,9 @@ class TAP:
                     seats = seatmap.find_elements(By.TAG_NAME, 'app-seatmap-seat')
                     if(is_element_in_view(self.driver, seats[infos_button[i]])):
                         print(f'Seat {infos_button[i]} is in view')
-                    seats[infos_button[i]].click()
+                    self.click_with_retry(seats[infos_button[i]], retries=10, delay=0.1)
                     print('Clicked on seat')
-                    infos.append(self.get_popup_info(seats[i]))
+                    infos.append(self.get_popup_info(seats[infos_button[i]]))
                 print('Seats info gotten successfully: Economy')
             except Exception as e:
                 print(f'Error getting seats info: {e}')
@@ -746,7 +838,7 @@ class TAP:
             
             try:
                 print('Getting seats info')
-                seats[infos_button[0]].click()
+                self.click_with_retry(seats[infos_button[0]], retries=10, delay=0.1)
                 print('Clicked on seat')
                 infos.append(self.get_popup_info(seats[infos_button[0]]))
                 print('Seats info gotten successfully: Business')
@@ -766,7 +858,9 @@ class TAP:
                 'seats_emergency_available': seats_emergency[0],
                 'seats_emergency_unavailable': seats_emergency[1],
                 'seats_standard_available': seats_standard[0],
-                'seats_standard_unavailable': seats_standard[1]
+                'seats_standard_unavailable': seats_standard[1],
+                'seats_business_available': 'N/A',
+                'seats_business_unavailable': 'N/A'
                 }
         else:
             return {
@@ -774,66 +868,17 @@ class TAP:
                 'seat_price': infos,
                 'total_seats_available': total_seats[0],
                 'total_seats_unavailable': total_seats[1],
-                'price_choose_seat': extras_values[0],
                 'price_bag': extras_values[1],
+                'price_preferred_boarding': 'N/A',
+                'seats_comfort_available': 'N/A',
+                'seats_comfort_unavailable': 'N/A',
+                'seats_emergency_available': 'N/A',
+                'seats_emergency_unavailable': 'N/A',
+                'seats_standard_available': 'N/A',
+                'seats_standard_unavailable': 'N/A',
                 'seats_business_available': seats_business[0],
                 'seats_business_unavailable': seats_business[1]
                 }
-
-
-                    
-
-                        
-            
-        
-
-
-        # # get data
-        # if soup.find('span', class_=re.compile('date-item__day-of-month date-item__day-of-month--selected')) is None:
-        #     print('No flights available on selected date OR invalid input OR invalid class name')
-        #     departure_date = 'No flights available on selected date'
-        #     departure_flyout_times = 'N/A'
-        #     arrival_flyout_times = 'N/A'
-        # else:
-        #     day = soup.find('span', class_=re.compile('date-item__day-of-month date-item__day-of-month--selected')).text
-        #     month = soup.find('span', class_=re.compile('date-item__month date-item__month--selected')).text
-        #     departure_date = f'{day} {month}'
-        #     # get departure and arrival times
-        #     WebDriverWait(self.driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-ref*='flight-segment.departure']")))
-        #     WebDriverWait(self.driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[data-ref*='flight-segment.arrival']")))
-        #     departure_div = self.driver.find_element(By.CSS_SELECTOR, "[data-ref*='flight-segment.departure']")
-        #     departure_flyout_times = departure_div.find_element(By.CSS_SELECTOR, "[class*='flight-info__hour']").text.replace(' ', '')
-        #     arrival_div = self.driver.find_element(By.CSS_SELECTOR, "[data-ref*='flight-segment.arrival']")
-        #     arrival_flyout_times = arrival_div.find_element(By.CSS_SELECTOR, "[class*='flight-info__hour']").text.replace(' ', '')
-        #     print(f'Departure date: {departure_date}')
-        #     print(f'Departure time: {departure_flyout_times}')
-        #     print(f'Arrival time: {arrival_flyout_times}')
-        #     print(f'Travel Times Done')
-        #     # departure_flyout_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[0].text.replace(' ', '')
-        #     # arrival_flyout_times = soup.find_all('span', class_='title-l-lg title-l-sm time__hour')[1].text.replace(' ', '')
-
-
-        # # get the prices
-        # prices = []
-        # for selection in soup.find_all('div', class_='date-item__price title-s-lg title-s-sm date-item__price--selected ng-star-inserted'):
-        #     # get the price
-        #     # self.driver.implicitly_wait(10)
-            
-        #     #wait = WebDriverWait(self.driver, 10)
-        #     #wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, 'ry-price.price')))
-        #     price = selection.find('ry-price', class_='price').text
-        #     # remove blank spaces
-        #     price = price.replace(' ', '')
-        #     # append to the list
-        #     prices.append(price)
-
-        # if prices == []:
-        #     prices = ['No flights available']
-
-        # # create the dictionary
-        # prices = [{'Departure': {'date': departure_date, 'departure_time': departure_flyout_times, 'arrival_time': arrival_flyout_times, 'price': prices[0], }}]
-
-        # return prices
     
     def check_seat_availability(self, seat):
         try:
@@ -1074,6 +1119,8 @@ if __name__ == '__main__':
 
     # get the data
 
+    filename = 'TAP.csv'
+    airliner = 'TAP'
     fares = ["Economy", "Business"]
     flights_details = []
     flights_seats = []
@@ -1081,6 +1128,7 @@ if __name__ == '__main__':
     tap.fill_home_page_form('09/09/2024', 'LIS', 'MAD')
     cookies = "accepted"
     flights = tap.get_flights()
+    print(f'Number of flights: {len(flights)}')
 
     for i in range(0,len(flights)):
         print(f'Flight {i}')
@@ -1090,9 +1138,28 @@ if __name__ == '__main__':
         flights_details.append(details)
         for fare in fares:
             tap.fill_home_page_form('09/09/2024', 'LIS', 'MAD')
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             flights = tap.get_flights()
             seats = tap.get_flight_seats(flights[i], fare)
             flights_seats.append(seats)
+            data = {
+                'time': current_time,
+                'airliner': airliner,
+                'flight': i + 1,
+                'details': details,
+                'seats': seats
+            }
+            if(i == 0 and fare == "Economy"):
+                with open(filename, mode='w', newline='') as file:
+                    writer = csv.writer(file)
+                    write_to_csv_row(writer, data, first=True)
+            else:
+                with open(filename, mode='a', newline='') as file:
+                    writer = csv.writer(file)
+                    write_to_csv_row(writer, data)
+
+    # close file
+    file.close()
 
     print(flights_details)
 
