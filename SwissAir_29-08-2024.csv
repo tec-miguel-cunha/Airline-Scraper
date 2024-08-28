@@ -1,0 +1,5 @@
+time,airliner,flight_ID,details_departure_flyout_time,details_arrival_flyout_time,details_price_economy,details_price_business,fares_0_name,fares_0_price,fares_1_name,fares_1_price,fares_2_name,fares_2_price,fares_3_name,fares_3_price,services_0_name,services_0_price,services_1_name,services_1_price,seats_0_name,seats_0_price,seats_0_available_seats,seats_0_unavailable_seats,seats_1_name,seats_1_price,seats_1_available_seats,seats_1_unavailable_seats,seats_2_name,seats_2_price,seats_2_available_seats,seats_2_unavailable_seats
+2024-08-29 00:21:18,Swiss International Air Lines,09-09-2024_LIS-GVA_1,14:30,17:55,496.61,Sold Out,Economy Light,479.61,Economy Classic,509.61,Economy Green,544.61,Economy Flex,549.61,Baggage,30.00,Seats,16.00,Preferred Zone Seat,"16,00",19,2,Extra Legroom Seat,"23,00",5,0,Classic Seat,"35,00",74,20
+2024-08-29 00:21:18,Swiss International Air Lines,09-09-2024_LIS-GVA_1,14:30,17:55,496.61,Sold Out
+2024-08-29 00:22:56,Tap Air Portugal,09-09-2024_LIS-GVA_2,19:50,23:15,526.61,Sold Out,Economy Classic,526.61,Economy Flex,566.61
+2024-08-29 00:22:56,Tap Air Portugal,09-09-2024_LIS-GVA_2,19:50,23:15,526.61,Sold Out
