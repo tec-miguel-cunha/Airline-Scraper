@@ -250,7 +250,7 @@ class SwissAir:
         n = len(self.buttons)
         for i in range(n):
             for attempt in range(self.retries):
-                if self.print_ > 2:
+                if self.print_ > 3:
                     print(f'Attempt {attempt + 1} to click buttons from index {n-i-1} to {n-1}')
                 success = True
                 for j in range(n-i-1, n):
@@ -1212,7 +1212,7 @@ class SwissAir:
                 print('Checking seat availability')
             seat_class = seat.get_attribute("class")
             seat_aria_label = seat.get_attribute("aria-label")
-            if self.print_ > 2:
+            if self.print_ > 3:
                 print(f'Seat class: {seat_class}')
                 print(f'Seat aria label: {seat_aria_label}')
             if "not available" in seat_class or "occupied" in seat_class or "blocked" in seat_class:
@@ -1372,7 +1372,7 @@ class SwissAir:
             if self.print_ > 1:
                 print('Iterated over seats')
         except Exception as e:
-            if self.print_ > 2:
+            if self.print_ > 1:
                 print(f'Error getting seats: {e}')
 
         if self.print_ > 1:
