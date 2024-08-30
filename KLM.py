@@ -34,9 +34,13 @@ if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
 """
 
 current_origin = "Amsterdam"
+current_origin_code = "AMS"
 current_destination = "Zurich"
+current_destination_code = "ZRH"
 current_flyout_date = "09/09/2024"
 current_fare_name = "Economy"
+current_flights = []
+current_index = 0
 
 def flatten_dict(d, parent_key='', sep='_'):
     if inputs.input_print_ > 1:
@@ -220,6 +224,7 @@ class KLM:
         self.cookies = 'not accepted'
         self.GDPR = 'not accepted'
         self.closed_popup_cabin_bags = False
+        self.retries = 3
         self.new_tab_opened = False
         self.closed_fares_overlay = False
         self.searched = False
@@ -294,7 +299,7 @@ class KLM:
                 print(f'No element by CSS Selector: {e}')
             return None
 
-    def fill_home_page_form(self, flyout, orig, dest, adults='1', teens='0', children='0', infants='0'):
+    def fill_home_page_form(self, flyout, orig, dest, repeat=True):
         if self.print_ > 1:
             print('Entering Fill Form Function')
         # set url
@@ -331,112 +336,130 @@ class KLM:
 
         time.sleep(2)
 
-        try:
-            if self.print_ > 1:
-                print('Trying to one way option in select')
-            if check_element_exists_by_CSS_SELECTOR(self.driver, "[formcontrolname='tripKind']"):
-                select_element = self.driver.find_element(By.CSS_SELECTOR, "[formcontrolname='tripKind']")
-                select = Select(select_element)
-                select.select_by_index(1)
+        if repeat:
+            try:
                 if self.print_ > 1:
-                    print('Selected one way option')
-            else:
-                if self.print_ > 1:
-                    print('No select element found')
-        except Exception as e:
-            if self.print_ > 0:
-                print(f'Exception occurred trying to select one way option: {e}')
-
-        try:
-            if self.print_ > 1:
-                print('Trying to enter origin')
-            if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test-value='origin']"):
-                origin = self.driver.find_element(By.CSS_SELECTOR, "[data-test-value='origin']")
-                origin.send_keys(orig)
-                time.sleep(1)
-                origin.send_keys(Keys.RETURN)
-            else:
-                if self.print_ > 1:
-                    print('No origin field found')
-        except Exception as e:
-            if self.print_ > 0:
-                print(f'Exception occurred trying to enter origin: {e}')
-        
-        try:
-            if self.print_ > 1:
-                print('Trying to enter destination')
-            if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test-value='destination']"):
-                destination = self.driver.find_element(By.CSS_SELECTOR, "[data-test-value='destination']")
-                destination.send_keys(dest)
-                time.sleep(1)
-                destination.send_keys(Keys.RETURN)
-            else:
-                if self.print_ > 1:
-                    print('No destination field found')
-        except Exception as e:
-            if self.print_ > 0:
-                print(f'Exception occurred trying to enter destination: {e}')
-
-        try:
-            if self.print_ > 1:
-                print('Trying to open calendar')
-            if check_element_exists_by_TAG_NAME(self.driver, 'bw-datepicker'):
-                input_div = self.driver.find_element(By.TAG_NAME, 'bw-datepicker')
-                if self.print_ > 1:
-                    print('Found input div')
-                if check_element_exists_by_CSS_SELECTOR(input_div, "[class*='mat-mdc-text-field-wrapper']"):
-                    input_field = input_div.find_element(By.CSS_SELECTOR, "[class*='mat-mdc-text-field-wrapper']")
-                    self.click_with_retry(input_field)
+                    print('Trying to open rest of home page form')
+                if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test='bwsfe-widget__open-search-button']", self.timeout):
+                    open_search_button = self.driver.find_element(By.CSS_SELECTOR, "[data-test='bwsfe-widget__open-search-button']")
+                    self.click_with_retry(open_search_button)
                     if self.print_ > 1:
-                        print('Clicked to open calendar')
+                        print('Clicked to open home page form')
                 else:
                     if self.print_ > 1:
-                        print('No input field found')
-            else:
+                        print('No button to open home page form found')
+            except Exception as e:
+                if self.print_ > 0:
+                    print(f'Error opening rest of home page form: {e}')
+                return "Abort"
+            
+        else:
+            try:
                 if self.print_ > 1:
-                    print('No input div found')
-        except Exception as e:
-            if self.print_ > 0:
-                print(f'Exception occurred trying to open calendar: {e}')
-
-        try:
-            if self.print_ > 1:
-                print('Trying to enter date')
-            if check_element_exists_by_TAG_NAME(self.driver, 'bwc-calendar'):
-                if self.print_ > 1:
-                    print('Found calendar')
-                calendar = self.driver.find_element(By.TAG_NAME, 'bwc-calendar')
-                parsed_date = datetime.strptime(flyout, "%d/%m/%Y")
-                formatted_date = parsed_date.strftime("%d %B %Y")
-                if check_element_exists_by_CSS_SELECTOR(calendar, f"[aria-label*='{formatted_date}']"):
-                    date = calendar.find_element(By.CSS_SELECTOR, f"[aria-label*='{formatted_date}']")
-                    self.click_with_retry(date)
+                    print('Trying to one way option in select')
+                if check_element_exists_by_CSS_SELECTOR(self.driver, "[formcontrolname='tripKind']"):
+                    select_element = self.driver.find_element(By.CSS_SELECTOR, "[formcontrolname='tripKind']")
+                    select = Select(select_element)
+                    select.select_by_index(1)
                     if self.print_ > 1:
-                        print('Clicked on date')
+                        print('Selected one way option')
                 else:
                     if self.print_ > 1:
-                        print('No date found')
-            else:
-                if self.print_ > 1:
-                    print('No calendar found')
-        except Exception as e:
-            if self.print_ > 0:
-                print(f'Exception occurred trying to enter date: {e}')
+                        print('No select element found')
+            except Exception as e:
+                if self.print_ > 0:
+                    print(f'Exception occurred trying to select one way option: {e}')
 
-        try: # click on button with data-test='bwc-calendar__confirm'
-            if self.print_ > 1:
-                print('Trying to click continue button')
-            if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test='bwc-calendar__confirm']"):
-                continue_button = self.driver.find_element(By.CSS_SELECTOR, "[data-test='bwc-calendar__confirm']")
-                self.click_with_retry(continue_button)
+            try:
                 if self.print_ > 1:
-                    print('Clicked continue button')
-            else:
+                    print('Trying to enter origin')
+                if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test-value='origin']"):
+                    origin = self.driver.find_element(By.CSS_SELECTOR, "[data-test-value='origin']")
+                    origin.send_keys(orig)
+                    time.sleep(1)
+                    origin.send_keys(Keys.RETURN)
+                else:
+                    if self.print_ > 1:
+                        print('No origin field found')
+            except Exception as e:
+                if self.print_ > 0:
+                    print(f'Exception occurred trying to enter origin: {e}')
+            
+            try:
                 if self.print_ > 1:
-                    print('No continue button found')
-        except Exception as e:
-            if self.print_ > 0:
-                print(f'Exception occurred trying to click continue button: {e}')
+                    print('Trying to enter destination')
+                if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test-value='destination']"):
+                    destination = self.driver.find_element(By.CSS_SELECTOR, "[data-test-value='destination']")
+                    destination.send_keys(dest)
+                    time.sleep(1)
+                    destination.send_keys(Keys.RETURN)
+                else:
+                    if self.print_ > 1:
+                        print('No destination field found')
+            except Exception as e:
+                if self.print_ > 0:
+                    print(f'Exception occurred trying to enter destination: {e}')
+
+            try:
+                if self.print_ > 1:
+                    print('Trying to open calendar')
+                if check_element_exists_by_TAG_NAME(self.driver, 'bw-datepicker'):
+                    input_div = self.driver.find_element(By.TAG_NAME, 'bw-datepicker')
+                    if self.print_ > 1:
+                        print('Found input div')
+                    if check_element_exists_by_CSS_SELECTOR(input_div, "[class*='mat-mdc-text-field-wrapper']"):
+                        input_field = input_div.find_element(By.CSS_SELECTOR, "[class*='mat-mdc-text-field-wrapper']")
+                        self.click_with_retry(input_field)
+                        if self.print_ > 1:
+                            print('Clicked to open calendar')
+                    else:
+                        if self.print_ > 1:
+                            print('No input field found')
+                else:
+                    if self.print_ > 1:
+                        print('No input div found')
+            except Exception as e:
+                if self.print_ > 0:
+                    print(f'Exception occurred trying to open calendar: {e}')
+
+            try:
+                if self.print_ > 1:
+                    print('Trying to enter date')
+                if check_element_exists_by_TAG_NAME(self.driver, 'bwc-calendar'):
+                    if self.print_ > 1:
+                        print('Found calendar')
+                    calendar = self.driver.find_element(By.TAG_NAME, 'bwc-calendar')
+                    parsed_date = datetime.strptime(flyout, "%d/%m/%Y")
+                    formatted_date = parsed_date.strftime("%d %B %Y")
+                    if check_element_exists_by_CSS_SELECTOR(calendar, f"[aria-label*='{formatted_date}']"):
+                        date = calendar.find_element(By.CSS_SELECTOR, f"[aria-label*='{formatted_date}']")
+                        self.click_with_retry(date)
+                        if self.print_ > 1:
+                            print('Clicked on date')
+                    else:
+                        if self.print_ > 1:
+                            print('No date found')
+                else:
+                    if self.print_ > 1:
+                        print('No calendar found')
+            except Exception as e:
+                if self.print_ > 0:
+                    print(f'Exception occurred trying to enter date: {e}')
+
+            try: # click on button with data-test='bwc-calendar__confirm'
+                if self.print_ > 1:
+                    print('Trying to click continue button')
+                if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test='bwc-calendar__confirm']"):
+                    continue_button = self.driver.find_element(By.CSS_SELECTOR, "[data-test='bwc-calendar__confirm']")
+                    self.click_with_retry(continue_button)
+                    if self.print_ > 1:
+                        print('Clicked continue button')
+                else:
+                    if self.print_ > 1:
+                        print('No continue button found')
+            except Exception as e:
+                if self.print_ > 0:
+                    print(f'Exception occurred trying to click continue button: {e}')
 
         try:
             if self.print_ > 1:
@@ -574,10 +597,16 @@ class KLM:
                 fares_buttons = flight.find_elements(By.TAG_NAME, 'bwsfc-cabin-class-card')
                 if self.print_ > 1:
                     print('Found prices')
-                price_economy = fares_buttons[0].find_element(By.CSS_SELECTOR, "[class*='bwsfc-cabin-class-card__price-amount']").text
-                price_economy = ''.join(re.findall(r'\d+', price_economy))
-                price_business = fares_buttons[1].find_element(By.CSS_SELECTOR, "[class*='bwsfc-cabin-class-card__price-amount']").text
-                price_business = ''.join(re.findall(r'\d+', price_business))
+                if check_element_exists_by_CSS_SELECTOR(fares_buttons[0], "[class*='bwsfc-cabin-class-card__price-amount']"): 
+                    price_economy = fares_buttons[0].find_element(By.CSS_SELECTOR, "[class*='bwsfc-cabin-class-card__price-amount']").text
+                    price_economy = ''.join(re.findall(r'\d+', price_economy))
+                else:
+                    price_economy = 'Sold Out'
+                if check_element_exists_by_CSS_SELECTOR(fares_buttons[1], "[class*='bwsfc-cabin-class-card__price-amount']"):
+                    price_business = fares_buttons[1].find_element(By.CSS_SELECTOR, "[class*='bwsfc-cabin-class-card__price-amount']").text
+                    price_business = ''.join(re.findall(r'\d+', price_business))
+                else:
+                    price_business = 'Sold Out'
                 if self.print_ > 1:
                     print('Got prices')
             else:
@@ -586,6 +615,18 @@ class KLM:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error getting prices: {e}')
+
+        try:
+            if check_element_exists_by_TAG_NAME(flight, 'bwc-carrier-logo'):
+                carrier_logo = flight.find_element(By.TAG_NAME, 'bwc-carrier-logo')
+                airliner = carrier_logo.get_attribute('alt')
+                if self.print_ > 1:
+                    print(f'Got carrier name: {airliner}')
+            else:
+                airliner = 'N/A'
+        except Exception as e:
+            if self.print_ > 0:
+                print(f'Error getting airliner: {e}')
 
         if self.print_ > 1:
             print('Returning flight details')
@@ -597,9 +638,9 @@ class KLM:
             'price_business': price_business
         }
 
-        return details
+        return airliner, details
     
-    def advance_to_your_selection_page(self, flights, index, fare_name = current_fare_name):
+    def advance_to_your_selection_page(self, flights = current_flights, index = current_index, fare_name = current_fare_name):
         if self.print_ > 1:
             print('Entering function to advance to your selection page')
 
@@ -613,9 +654,15 @@ class KLM:
                 if self.print_ > 1:
                     print('Found prices')
                 if fare_name == 'Economy':
-                    self.click_with_retry(fares_buttons[0])
+                    if not self.click_with_retry(fares_buttons[0]):
+                        if self.print_ > 0:
+                            print('Failed to click on Economy fare')
+                        return "Continue"
                 else:
-                    self.click_with_retry(fares_buttons[1])
+                    if not self.click_with_retry(fares_buttons[1]):
+                        if self.print_ > 0:
+                            print('Failed to click on Business fare')
+                        return "Continue"
                 if self.print_ > 1:
                     print('Got prices')
             else:
@@ -635,12 +682,12 @@ class KLM:
                 if self.print_ > 1:
                     print('Found upsells container')
                 if check_element_exists_by_TAG_NAME(upsells_container, 'bws-flight-upsell-item'):
-                    fares = upsells_container.find_elements(By.TAG_NAME, 'bws-flight-upsell-item')
-                    for i in range(len(fares)):
-                        fare_name = fares[i].find_element(By.TAG_NAME, 'h3').find_element(By.TAG_NAME, 'span').text
+                    fares_divs = upsells_container.find_elements(By.TAG_NAME, 'bws-flight-upsell-item')
+                    for i in range(len(fares_divs)):
+                        fare_name = fares_divs[i].find_element(By.TAG_NAME, 'h3').find_element(By.TAG_NAME, 'span').text
                         if self.print_ > 1:
                             print('Found fare name')
-                        fare_price_div = fares[i].find_element(By.TAG_NAME, 'bws-flight-upsell-price')
+                        fare_price_div = fares_divs[i].find_element(By.TAG_NAME, 'bws-flight-upsell-price')
                         if self.print_ > 1:
                             print('Found fare price div')
                         fare_price = fare_price_div.find_element(By.TAG_NAME, 'span').text
@@ -648,7 +695,7 @@ class KLM:
                         if self.print_ > 1:
                             print('Found fare price')
                         if i == 0:
-                            button_to_click = fares[i].find_element(By.CSS_SELECTOR, "[data-test='bws-flight-upsell-confirm__button']")
+                            button_to_click = fares_divs[i].find_element(By.CSS_SELECTOR, "[data-test='bws-flight-upsell-confirm__button']")
                             if self.print_ > 1:
                                 print('Found button to click')
                         fares.append({
@@ -682,7 +729,6 @@ class KLM:
 
         return fares
 
-    
     def advance_to_passenger_form(self):
 
         if self.print_ > 1:
@@ -700,7 +746,7 @@ class KLM:
                     print('Not in flight results page')
                 for i in range(self.retries):
                     self.driver.refresh()
-                    state = self.fill_home_page_form()
+                    state = self.advance_to_your_selection_page(flights=current_flights, index=current_index, fare_name=current_fare_name)
                     if state == "Abort":
                         return "Abort"
                     if not check_and_wait_for_URL(self.driver, page_url, timeout=self.timeout):
@@ -734,7 +780,6 @@ class KLM:
             print('Exiting function to advance to passenger form')
             print('Going to next page')
 
-
     def fill_passenger_form(self):
 
         if self.print_ > 1:
@@ -752,7 +797,7 @@ class KLM:
                     print('Not in flight results page')
                 for i in range(self.retries):
                     self.driver.refresh()
-                    state = self.fill_home_page_form()
+                    state = self.advance_to_passenger_form()
                     if state == "Abort":
                         return "Abort"
                     if not check_and_wait_for_URL(self.driver, page_url, timeout=self.timeout):
@@ -772,7 +817,7 @@ class KLM:
         try:
             if self.print_ > 1:
                 print('Trying to get title field')
-            if check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='bwc-grid bwco-personal-details__fields']"):
+            if check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='bwc-grid bwco-personal-details__fields']", self.timeout):
                 title_selector_div = self.driver.find_element(By.CSS_SELECTOR, "[class*='bwc-grid bwco-personal-details__fields']")
                 if self.print_ > 1:
                     print('Found title field div')
@@ -790,6 +835,9 @@ class KLM:
             else:
                 if self.print_ > 1:
                     print('No title field div found')
+                self.driver.refresh()
+                if self.fill_passenger_form() == "Abort":
+                    return "Abort"
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error selecting title: {e}')
@@ -799,11 +847,13 @@ class KLM:
                 print('Trying to get first name field')
             if check_element_exists_by_CSS_SELECTOR(self.driver, "[name='firstName']"):
                 first_name = self.driver.find_element(By.CSS_SELECTOR, "[name='firstName']")
+                first_name.clear()
                 first_name.send_keys('Miguel')
                 if self.print_ > 1:
                     print('Entered first name')
                 if check_element_exists_by_CSS_SELECTOR(self.driver, "[name='lastName']"):
                     last_name = self.driver.find_element(By.CSS_SELECTOR, "[name='lastName']")
+                    last_name.clear()
                     last_name.send_keys('Cunha')
                     if self.print_ > 1:
                         print('Entered last name')
@@ -816,6 +866,7 @@ class KLM:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error entering first name: {e}')
+            return "Abort"
 
         try:
             if self.print_ > 1:
@@ -831,6 +882,7 @@ class KLM:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error clicking continue button: {e}')
+            return "Abort"
 
         time.sleep(1)
 
@@ -851,6 +903,7 @@ class KLM:
                         print('No country code found')
                 if check_element_exists_by_CSS_SELECTOR(contact_details_div, "[name='phoneNumberFirst']"):
                     phone_number = contact_details_div.find_element(By.CSS_SELECTOR, "[name='phoneNumberFirst']")
+                    phone_number.clear()
                     phone_number.send_keys('912345678')
                     if self.print_ > 1:
                         print('Entered phone number')
@@ -859,6 +912,7 @@ class KLM:
                         print('No phone number found')
                 if check_element_exists_by_CSS_SELECTOR(contact_details_div, "[name='emailAddress']"):
                     email = contact_details_div.find_element(By.CSS_SELECTOR, "[name='emailAddress']")
+                    email.clear()
                     email.send_keys('abc123@gmail.com')
                     if self.print_ > 1:
                         print('Entered email')
@@ -871,6 +925,7 @@ class KLM:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error inserting contact details: {e}')
+            return "Abort"
 
         try: # Click on continue button with this data-test bwco-contact-details__continue
             if self.print_ > 1:
@@ -886,6 +941,7 @@ class KLM:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error clicking close details button: {e}')
+            return "Abort"
 
         try:
             if self.print_ > 1:
@@ -901,12 +957,13 @@ class KLM:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error clicking continue button: {e}')
+            return "Abort"
+        
         
         if self.print_ > 1:
             print('Exiting function to fill passenger form')
             print('Going to next page')
 
-    
     def get_bags_and_info(self):
 
         if self.print_ > 1:
@@ -925,7 +982,7 @@ class KLM:
                     print('Not in seat selection page')
                 for i in range(self.retries):
                     self.driver.refresh()
-                    state = self.fill_home_page_form()
+                    state = self.fill_passenger_form()
                     if state == "Abort":
                         return "Abort"
                     if not check_and_wait_for_URL(self.driver, page_url, timeout=self.timeout):
@@ -1045,7 +1102,7 @@ class KLM:
                     print('Not in seats page')
                 for i in range(self.retries):
                     self.driver.refresh()
-                    state = self.fill_home_page_form()
+                    state = self.fill_passenger_form()
                     if state == "Abort":
                         return "Abort"
                     if not check_and_wait_for_URL(self.driver, page_url, timeout=self.timeout):
@@ -1183,18 +1240,26 @@ class KLM:
                 print('Checking all seats and availability')
             for seat in seats:
                 seat_zone, seat_availability = self.check_seat_availability(seat, fare_name)
-                if seat_zone == 'N/A' or seat_availability == 'N/A':
-                    continue
-                if self.print_ > 3:
-                    print(f'Seat type: {seat_zone}')
-                    print(f'Seat availability: {seat_availability}')
-                for seat_info in seats_info:
-                    if seat_info['zone'] == seat_zone:
+                if fare_name == 'Economy':
+                    if seat_zone == 'N/A' or seat_availability == 'N/A':
+                        continue
+                    if self.print_ > 3:
+                        print(f'Seat type: {seat_zone}')
+                        print(f'Seat availability: {seat_availability}')
+                    for seat_info in seats_info:
+                        if seat_info['zone'] == seat_zone:
+                            if seat_availability == 'Available':
+                                seat_info['available'] += 1
+                            else:
+                                seat_info['unavailable'] += 1
+                            break
+                else:
+                    if seat_zone == 'Business':
                         if seat_availability == 'Available':
-                            seat_info['available'] += 1
+                            seats_info[0]['available'] += 1
                         else:
-                            seat_info['unavailable'] += 1
-                        break
+                            seats_info[0]['unavailable'] += 1
+
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error checking seats availability: {e}')
@@ -1226,25 +1291,34 @@ class KLM:
                                         print('No price found')
                                         print('Opening legend')
                                     self.click_with_retry(header)
-                                    if check_element_exists_by_TAG_NAME(legend, 'bw-seatmap-commercial-legend-item', timeout=self.timeout):
+                                    if check_element_exists_by_TAG_NAME(legend, 'bw-seatmap-commercial-legend-item', timeout=self.timeout_little):
                                         legend_items = legend.find_elements(By.TAG_NAME, 'bw-seatmap-commercial-legend-item')
-                                        for item in legend_items:
-                                            if check_element_exists_by_CSS_SELECTOR(item, "[class='bw-seatmap-commercial-legend-item__content-header']"):
-                                                item_infos_div = item.find_element(By.CSS_SELECTOR, "[class='bw-seatmap-commercial-legend-item__content-header']")
-                                                if check_element_exists_by_TAG_NAME(item_infos_div, 'div'):
-                                                    divs = item_infos_div.find_elements(By.TAG_NAME, 'div')
-                                                    if "Front" in divs[0].text:
-                                                        price = divs[1].find_element(By.TAG_NAME, 'span').text
-                                                        price = ''.join(re.findall(r'\d+\.\d+|\d+', price))
-                                                        seats_info[2]['price'] = price
-                                                    elif "Extra legroom" in divs[0].text:
-                                                        price = divs[1].find_element(By.TAG_NAME, 'span').text
-                                                        price = ''.join(re.findall(r'\d+\.\d+|\d+', price))
-                                                        seats_info[3]['price'] = price
-                                                    elif "Standard" in divs[0].text:
-                                                        price = divs[1].find_element(By.TAG_NAME, 'span').text
-                                                        price = ''.join(re.findall(r'\d+\.\d+|\d+', price))
-                                                        seats_info[4]['price'] = price
+                                    else:
+                                        if self.print_ > 1:
+                                            print('Could not find legend items by TAG_NAME: bw-seatmap-commercial-legend-item')
+                                            print('Looking for buttons')
+                                        if check_element_exists_by_TAG_NAME(legend, 'button'):
+                                            legend_items = legend.find_elements(By.TAG_NAME, 'button')
+                                    for item in legend_items:
+                                        if check_element_exists_by_CSS_SELECTOR(item, "[class*='__content-header']"):
+                                            item_infos_div = item.find_element(By.CSS_SELECTOR, "[class*='__content-header']")
+                                            if check_element_exists_by_TAG_NAME(item_infos_div, 'div'):
+                                                divs = item_infos_div.find_elements(By.TAG_NAME, 'div')
+                                                if "Front" in divs[0].text:
+                                                    price = divs[1].find_element(By.TAG_NAME, 'span').text
+                                                    price = ''.join(re.findall(r'\d+\.\d+|\d+', price))
+                                                    seats_info[2]['price'] = price
+                                                elif "Extra legroom" in divs[0].text:
+                                                    price = divs[1].find_element(By.TAG_NAME, 'span').text
+                                                    price = ''.join(re.findall(r'\d+\.\d+|\d+', price))
+                                                    seats_info[3]['price'] = price
+                                                elif "Standard" in divs[0].text:
+                                                    price = divs[1].find_element(By.TAG_NAME, 'span').text
+                                                    price = ''.join(re.findall(r'\d+\.\d+|\d+', price))
+                                                    seats_info[4]['price'] = price
+                                        else:
+                                            if self.print_ > 1:
+                                                print('No item infos div found')
                 else:
                     if self.print_ > 1:
                         print('No seats info legend container found')
@@ -1327,60 +1401,132 @@ class KLM:
             print('Exiting function to get back to home page')
             print('Going to Home page')
 
-            
+    def close(self):
+        if self.print_ > 1:
+            print('Closing driver')
+        self.driver.quit()
+
+
+if __name__ == "__main__":
         
+    klm = KLM(headless=False)
+    filename = 'KLM_' + time.strftime("%d-%m-%Y") + '.csv'
+    file_exists = os.path.isfile(filename)
+    file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+    airliner = 'KLM'
+    flights_details = []
+    flights_seats = []
+    flyout = current_flyout_date
+    origin_code = current_origin_code
+    origin_name = current_origin
+    destination_code = current_destination_code
+    destination_name = current_destination
+    fare_name = current_fare_name
 
+    fare_names = ['Economy', 'Business']
 
+    klm.fill_home_page_form(flyout=flyout, orig=origin_name, dest=destination_name, repeat=False)
 
-
-        
-
-        # Implement seat logic here
-
-
-                
-
-                
-            
-        
-    
-
-
-                
-            
-        
-
-
-        
-
-                        
-                    
-
-                
-
-
-
-            
-
-
-
-    
-
-
-
-if __name__ == '__main__':
-    klm = KLM()
-    klm.fill_home_page_form('09/09/2024', 'Amsterdam', 'Zurich')
     flights = klm.get_flights()
-    print(len(flights))
-    print(klm.get_flight_details(flights, 0))
-    print(klm.advance_to_your_selection_page(flights, 0))
-    klm.advance_to_passenger_form()
-    klm.fill_passenger_form()
-    print(klm.get_bags_and_info())
-    klm.get_to_seats_page()
-    print(klm.get_seats())
-    klm.get_back_to_home_page()
-    time.sleep(5)
-    klm.driver.quit()
-    print('Done')
+    current_flights = flights
+
+    # if flights == "Error":
+    #     print("Error")
+    #     klm.driver.quit()
+    #     klm = KLM(headless=False)
+    #     flights = klm.get_to_flights(flyout=flyout, orig_name=origin_name, orig=origin_code, dest_name=destination_name, dest=destination_code, repeat=False)
+    #     if flights == "Error":
+    #         print("Error")
+    #         klm.driver.quit()
+    #         exit()
+    if klm.print_ > 2:
+        print(f'Found {len(flights)} flights')
+
+    if flights is not None:
+        for i in range(len(flights)):
+            flight_id = flyout.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            current_index = i
+            for j in range(len(fare_names)):
+                observation_id = f'{flight_id}_{fare_names[j]}'
+                current_fare_name = fare_names[j]
+                if not (i == 0 and j == 0):
+                    klm.fill_home_page_form(flyout=flyout, orig=origin_name, dest=destination_name)
+                    flights = klm.get_flights()
+                    current_flights = flights
+                airliner, details = klm.get_flight_details(flights, index = i)
+                flights_details.append(details)
+                fares = klm.advance_to_your_selection_page(flights, index = i, fare_name = fare_names[j])
+                if fares == "Continue":
+                    data = {
+                        'time': current_time,
+                        'airliner': airliner,
+                        'flight_ID': flight_id,
+                        'observation_id': observation_id,
+                        'details': details,
+                    }
+                else:
+                    klm.advance_to_passenger_form()
+                    klm.fill_passenger_form()
+                    infos = klm.get_bags_and_info()
+                    klm.get_to_seats_page()
+                    seats = klm.get_seats(fare_name=current_fare_name)
+                    flights_seats.append(seats)
+                    data = {
+                        'time': current_time,
+                        'airliner': airliner,
+                        'flight_ID': flight_id,
+                        'observation_id': observation_id,
+                        'details': details,
+                        'fares': fares,
+                        'infos': infos,
+                        'seats': seats
+                }
+                if(i == 0 and j == 0):
+                    if file_exists and file_not_empty:
+                        mode = 'a'
+                        first = False
+                    else:
+                        mode = 'w'
+                        first = True
+                    with open(filename, mode=mode, newline='') as file:
+                        writer = csv.writer(file)
+                        write_to_csv_row(writer, data, first)
+                else:
+                    with open(filename, mode='a', newline='') as file:
+                        writer = csv.writer(file)
+                        write_to_csv_row(writer, data)
+
+    if klm.print_ > 2:
+        print(flights_details)
+        print(flights_seats)
+
+    klm.close()
+           
+
+
+
+            
+
+
+
+    
+
+
+
+# if __name__ == '__main__':
+#     klm = KLM()
+#     klm.fill_home_page_form('09/09/2024', 'Amsterdam', 'Zurich')
+#     flights = klm.get_flights()
+#     print(len(flights))
+#     print(klm.get_flight_details(flights, 0))
+#     print(klm.advance_to_your_selection_page(flights, 0))
+#     klm.advance_to_passenger_form()
+#     klm.fill_passenger_form()
+#     print(klm.get_bags_and_info())
+#     klm.get_to_seats_page()
+#     print(klm.get_seats())
+#     klm.get_back_to_home_page()
+#     time.sleep(5)
+#     klm.driver.quit()
+#     print('Done')
