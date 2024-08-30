@@ -72,7 +72,7 @@ observer.observe(document.body, config);
 """
 
 def flatten_dict(d, parent_key='', sep='_'):
-    if inputs.input_print_ > 1:
+    if inputs.tap_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -91,12 +91,12 @@ def flatten_dict(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", item))
         else:
             items.append((new_key, v))
-    if inputs.input_print_ > 1:
+    if inputs.tap_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
 def flatten_dict_with_na(d, parent_key='', sep='_'):
-    if inputs.input_print_ > 1:
+    if inputs.tap_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -121,12 +121,12 @@ def flatten_dict_with_na(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", 'N/A'))
         else:
             items.append((new_key, 'N/A'))
-    if inputs.input_print_ > 1:
+    if inputs.tap_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
 def write_to_csv_row(writer, data, first=False, sold_out=False):
-    if inputs.input_print_ > 1:
+    if inputs.tap_print_ > 1:
         print('Writing to CSV row')
     # Flatten the details and seats data
     if sold_out:
@@ -135,7 +135,7 @@ def write_to_csv_row(writer, data, first=False, sold_out=False):
     else:
         flattened_data = flatten_dict(data)
     if first:
-        if inputs.input_print_ > 1:
+        if inputs.tap_print_ > 1:
             print('Writing header row')
         # Write the header row
         header = list(flattened_data.keys())
@@ -144,7 +144,7 @@ def write_to_csv_row(writer, data, first=False, sold_out=False):
     row = list(flattened_data.values())
     # Write the row to the CSV file
     writer.writerow(row)
-    if inputs.input_print_ > 1:
+    if inputs.tap_print_ > 1:
         print('Wrote flattened data')
 
 def check_and_close_popup(driver):
@@ -1123,28 +1123,18 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
 
     fares = ["Economy", "Business"]
 
-    # filenames = []
-
-    # for fare in fares:
-    #     filenames.append('TAP_' + time.strftime("%d-%m-%Y") + '_' + fare + '.csv')
-
-    # files_exist = []
-    # files_not_empty = []
-
-    # for filename in filenames:                 
-    #     files_exist.append(os.path.isfile(filename))
-    #     files_not_empty.append(os.path.getsize(filename) > 0 if files_exist[-1] else False)
-    
     airliner = 'TAP'
     flights_details = []
     flights_seats = []
 
+    filename_partial = airliner + '_' + time.strftime("%d-%m-%Y") + '_'
+
     tap.fill_home_page_form(date, origin_code, destination_code)
     flights = tap.get_flights()
-    if inputs.tap_print_ > 2:
-        print(f'Number of flights: {len(flights)}')
 
     if flights is not None:
+        if inputs.tap_print_ > 2:
+            print(f'Number of flights: {len(flights)}')
         for i in range(0,len(flights)):
             flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
             if i != 0:
@@ -1155,7 +1145,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
             if 'Portug' in airliner:
                 for fare in fares:
                     sold_out = False
-                    filename = 'TAP_' + time.strftime("%d-%m-%Y") + '_' + fare + '.csv'
+                    filename = filename_partial + fare + '.csv'
                     observation_id = flight_id + '_' + fare
                     file_exists = os.path.isfile(filename)
                     file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
@@ -1165,6 +1155,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         if len(flights_seats) > 1:
                             sold_out = True
                             seats_sold_out = flights_seats[-2]
+                            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                             data = {
                                 'current_time': current_time,
                                 'airliner': airliner,
@@ -1174,6 +1165,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                                 'seats': seats_sold_out
                             }
                         else:
+                            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                             data = {
                                 'current_time': current_time,
                                 'airliner': airliner,
@@ -1188,6 +1180,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         flights = tap.get_flights()
                         seats = tap.get_flight_seats(flights[i], fare)
                         flights_seats.append(seats)
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
@@ -1218,6 +1211,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     file_exists = os.path.isfile(filename)
                     file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     data = {
                         'current_time': current_time,
                         'airliner': airliner,
@@ -1234,11 +1228,35 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         first = True
                     with open(filename, mode=mode, newline='') as file:
                         writer = csv.writer(file)
-                        write_to_csv_row(writer, data, first, sold_out=sold_out)
-                
+                        write_to_csv_row(writer, data, first, sold_out=sold_out)          
     else:
-        if inputs.tap_print_ > 0:
-            print('In main function: No flights found')
+        if tap.print_ > 0:
+            print('No flights found')
+        flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(1)
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        data = {
+            'current_time': current_time,
+            'airliner': airliner,
+            'flight_ID': flight_id,
+            'observation_ID': 'N/A',
+            'details': 'No flights found',
+            'fares': 'No flights found',
+            'services': 'No flights found',
+            'seats': 'No flights found'
+        }
+        for fare in fares:
+            filename = filename_partial + '_' + fare + '.csv'
+            file_exists = os.path.isfile(filename)
+            file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+            if file_exists and file_not_empty:
+                mode = 'a'
+                first = False
+            else:
+                mode = 'w'
+                first = True
+            with open(filename, mode=mode, newline='') as file:
+                writer = csv.writer(file)
+                write_to_csv_row(writer, data, first)
 
     if inputs.tap_print_ > 2:
         print(flights_details)

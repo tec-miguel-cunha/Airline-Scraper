@@ -43,11 +43,45 @@ def flatten_dict(d, parent_key='', sep='_'):
         print('Returning items from falatten_dict')
     return dict(items)
 
-def write_to_csv_row(writer, data, first=False):
+def flatten_dict_with_na(d, parent_key='', sep='_'):
+    if inputs.ryanair_print_ > 1:
+        print('Flattening dictionary')
+    items = []
+    for k, v in d.items():
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+            items.append((k, v))
+            continue
+        if k == 'details':
+            flattened_details = flatten_dict(v)
+            items.append((k, flattened_details))
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        elif isinstance(v, list):
+            if len(v) == 1 and isinstance(v[0], dict):
+                # Flatten the single dictionary element in the list
+                items.extend(flatten_dict(v[0], new_key, sep=sep).items())
+            else:
+                for i, item in enumerate(v):
+                    if isinstance(item, dict):
+                        items.extend(flatten_dict(item, f"{new_key}_{i}", sep=sep).items())
+                    else:
+                        items.append((f"{new_key}_{i}", 'N/A'))
+        else:
+            items.append((new_key, 'N/A'))
+    if inputs.ryanair_print_ > 1:
+        print('Returning items from falatten_dict')
+    return dict(items)
+
+def write_to_csv_row(writer, data, first=False, sold_out=False):
     if inputs.ryanair_print_ > 1:
         print('Writing to CSV row')
     # Flatten the details and seats data
-    flattened_data = flatten_dict(data)
+    if sold_out:
+        flattened_data = flatten_dict_with_na(data)
+        flattened_data = flatten_dict(flattened_data)
+    else:
+        flattened_data = flatten_dict(data)
     if first:
         if inputs.ryanair_print_ > 1:
             print('Writing header row')
@@ -55,11 +89,6 @@ def write_to_csv_row(writer, data, first=False):
         header = list(flattened_data.keys())
         writer.writerow(header)
 
-    row = list(flattened_data.values())
-    # Write the row to the CSV file
-    writer.writerow(row)
-    if inputs.ryanair_print_ > 1:
-        print('Wrote flattened data')
 
 def check_and_close_popup(driver):
     if inputs.ryanair_print_ > 1:
@@ -279,6 +308,11 @@ class RyanAir:
 
         if self.print_ > 1:
             print('Getting flight details')
+
+        departure_date = 'N/A'
+        departure_flyout_times = 'N/A'
+        arrival_flyout_times = 'N/A'
+        price = 'N/A'
         
         try:
             if check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='date-item__day-of-month--selected']"):
@@ -946,6 +980,7 @@ class RyanAir:
                 extra_luggage_div = self.driver.find_element(By.TAG_NAME, 'bags-checkin-bag-table-controls')
 
                 # 10 Kg bag
+                extra_price_ten_kg = 'N/A'
                 ten_kg_bag_div = extra_luggage_div.find_element(By.TAG_NAME, 'bags-ten-kg-bags')
                 extra_price_ten_kg = ten_kg_bag_div.find_element(By.CSS_SELECTOR, "[class*='price__integers']").text + ','
                 if check_element_exists_by_CSS_SELECTOR(ten_kg_bag_div, "[class*='price__decimals']"):
@@ -958,6 +993,7 @@ class RyanAir:
                 luggage_prices[0]['price'] = extra_price_ten_kg
 
                 # 20 Kg bag
+                extra_price_twenty_kg = 'N/A'
                 twenty_kg_bag_div = extra_luggage_div.find_element(By.TAG_NAME, 'bags-twenty-kg-bags')
                 extra_price_twenty_kg = twenty_kg_bag_div.find_element(By.CSS_SELECTOR, "[class*='price__integers']").text + ','
                 if check_element_exists_by_CSS_SELECTOR(ten_kg_bag_div, "[class*='price__decimals']"):
@@ -1051,11 +1087,12 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                 seats = 'N/A'
                 luggage_prices = 'N/A'
                 continue
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             data = {
-                'time': current_time,
+                'current_time': current_time,
                 'airliner': airliner,
-                'flight_ID': flight_id,
-                'observation_ID': observation_ID,
+                'flight_id': flight_id,
+                'observation_id': observation_ID,
                 'details': details,
                 'fares': fares,
                 'infos': luggage_prices,
@@ -1075,6 +1112,37 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                 with open(filename, mode='a', newline='') as file:
                     writer = csv.writer(file)
                     write_to_csv_row(writer, data)
+    else:
+        if ryanair.print_ > 0:
+            print('No flights found. Assuming that the flights are sold out.')
+        flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
+        observation_ID = flight_id + fare_name
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        details = 'NO DATA FOUND'
+        fares = 'NO DATA FOUND'
+        seats = 'NO DATA FOUND'
+        luggage_prices = 'NO DATA FOUND'
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        data = {
+            'current_time': current_time,
+            'airliner': airliner,
+            'flight_id': flight_id,
+            'observation_id': observation_ID,
+            'details': details,
+            'fares': fares,
+            'infos': luggage_prices,
+            'seats': seats
+        }
+        if file_exists and file_not_empty:
+            mode = 'a'
+            first = False
+        else:
+            mode = 'w'
+            first = True
+        with open(filename, mode=mode, newline='') as file:
+            writer = csv.writer(file)
+            write_to_csv_row(writer, data, first)
+
 
     if ryanair.print_ > 1:
         print(flights_details)
@@ -1083,10 +1151,9 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
     ryanair.close()
 
 
-# test
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Fill the flights page form for Ryanair")
+    parser = argparse.ArgumentParser(description="Get information about flights page form for Ryanair")
 
     parser.add_argument('--origin-name', required=False, help='Origin airport name')
     parser.add_argument('--origin', required=True, help='Origin airport code')

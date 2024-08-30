@@ -40,7 +40,7 @@ current_origin = ''
 current_destination = ''
 
 def flatten_dict(d, parent_key='', sep='_'):
-    if inputs.easyjet_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -59,12 +59,12 @@ def flatten_dict(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", item))
         else:
             items.append((new_key, v))
-    if inputs.easyjet_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
 def flatten_dict_with_na(d, parent_key='', sep='_'):
-    if inputs.easyjet_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -89,12 +89,12 @@ def flatten_dict_with_na(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", 'N/A'))
         else:
             items.append((new_key, 'N/A'))
-    if inputs.easyjet_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
 def write_to_csv_row(writer, data, first=False, sold_out=False):
-    if inputs.easyjet_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print('Writing to CSV row')
     # Flatten the details and seats data
     if sold_out:
@@ -103,7 +103,7 @@ def write_to_csv_row(writer, data, first=False, sold_out=False):
     else:
         flattened_data = flatten_dict(data)
     if first:
-        if inputs.easyjet_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print('Writing header row')
         # Write the header row
         header = list(flattened_data.keys())
@@ -112,119 +112,119 @@ def write_to_csv_row(writer, data, first=False, sold_out=False):
     row = list(flattened_data.values())
     # Write the row to the CSV file
     writer.writerow(row)
-    if inputs.easyjet_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print('Wrote flattened data')
 
 def check_and_close_popup(driver):
-    if inputs.input_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print('Checking and closing popup')
     try:
         # Check for overlay element
-        overlay = WebDriverWait(driver, timeout=inputs.input_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
+        overlay = WebDriverWait(driver, timeout=inputs.swiss_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
         if overlay:
             # Find and click the close button
             close_button = overlay.find_element(By.CSS_SELECTOR, "[class*='close-sc closeStyle1-sc']")
             if close_button:
                 close_button.click()
-                if inputs.input_print_ > 1:
+                if inputs.swiss_print_ > 1:
                     print('Overlay closed')
         else:
-            if inputs.input_print_ > 1:
+            if inputs.swiss_print_ > 1:
                 print('No overlay found')
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.swiss_print_ > 0:
             print(f'Exception occurred: {e}')
 
 def is_element_in_view(driver, element):
-    if inputs.input_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print('Checking if element is in view')
     # Check if the element is displayed
     if element.is_displayed():
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print('Element is displayed')
         return True
     else:
         # Scroll the element into view
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print('Trying to scroll element into view')
         driver.execute_script("arguments[0].scrollIntoView();", element)
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print('Scrolled element into view')
         # Check again if the element is displayed after scrolling
         return element.is_displayed()
 
-def check_element_exists_by_ID(driver, id, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_ID(driver, id, timeout=inputs.swiss_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print(f'Checking if element exists by ID: {id}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.ID, id)))
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.swiss_print_ > 0:
             print(f'No element by ID: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.swiss_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print(f'Checking if element exists by CSS: {css}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print('Element exists')
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.swiss_print_ > 0:
             print(f'No element by CSS Selector: {e}')
         element_exists = False
     return element_exists
 
-def check_element_NOT_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.input_timeout_checks):
+def check_element_NOT_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.swiss_timeout_checks):
     element_not_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print(f'Checking if element not exists by CSS: {css}')
     try:
         WebDriverWait(driver, timeout=timeout).until_not(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print("Passed WebDriverWait")
         element_not_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.swiss_print_ > 0:
             print(f'Element exists by CSS Selector: {e}')
         element_not_exists = False
     return element_not_exists
 
-def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.swiss_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.swiss_print_ > 1:
         print(f'Checking if element exists by Tag Name: {tag}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.TAG_NAME, tag)))
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.swiss_print_ > 0:
             print(f'No element by Tag Name: {e}')
         element_exists = False
     return element_exists
 
-def check_and_wait_for_URL(driver, url, timeout=inputs.input_timeout):
-    if inputs.input_print_ > 1:
+def check_and_wait_for_URL(driver, url, timeout=inputs.swiss_timeout):
+    if inputs.swiss_print_ > 1:
         print(f'Checking and waiting for URL: {url}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.url_to_be(url))
-        if inputs.input_print_ > 1:
+        if inputs.swiss_print_ > 1:
             print("Passed WebDriverWait")
         return True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.swiss_print_ > 0:
             print(f'URL not found: {e}')
         return False
 
@@ -232,11 +232,11 @@ class SwissAir:
 
     def __init__(self, headless=True):
 
-        self.timeout = inputs.input_timeout
-        self.timeout_cookies = inputs.input_timeout_cookies
-        self.timeout_little = inputs.input_timeout_little
-        self.timeout_implicitly_wait = inputs.input_timeout_implicitly_wait
-        self.print_ = inputs.input_print_
+        self.timeout = inputs.swiss_timeout
+        self.timeout_cookies = inputs.swiss_timeout_cookies
+        self.timeout_little = inputs.swiss_timeout_little
+        self.timeout_implicitly_wait = inputs.swiss_timeout_implicitly_wait
+        self.print_ = inputs.swiss_print_
         self.retries = inputs.swiss_retries
         self.cookies = 'not accepted'
         self.GDPR = 'not accepted'
@@ -302,7 +302,7 @@ class SwissAir:
             print('Failed to click all buttons after retries')
         return False
 
-    def get_element_by_CSS_SELECTOR(self, element, css, timeout=inputs.input_timeout_checks):
+    def get_element_by_CSS_SELECTOR(self, element, css, timeout=inputs.swiss_timeout_checks):
         if self.print_ > 1:
             print(f'Getting element by CSS: {css}')
         try:
@@ -1469,27 +1469,27 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
     formatted_date = datetime.strptime(date, '%Y/%m/%d').strftime('%d/%m/%Y')
     state = swiss.fill_home_page_form(formatted_date, origin_name, destination_name)
     if state == "Abort":
-        if inputs.input_print_ > 0:
+        if swiss.print_ > 0:
             print('Aborting due to error filling home page form')
         swiss.close()
         sys.exit()
 
     flights = swiss.get_flights()
     if flights == "Abort":
-        if inputs.input_print_ > 0:
+        if swiss.print_ > 0:
             print('Aborting due to error getting flights')
         swiss.close()
         sys.exit()
-    if inputs.input_print_ > 2:
-        print(f'Number of flights: {len(flights)}')
 
     if flights is not None:
+        if swiss.print_ > 2:
+            print(f'Number of flights: {len(flights)}')
         for j in range(0,len(flights)):
             flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(j+1)
             if j != 0:
                 state = swiss.fill_home_page_form(formatted_date, origin_name, destination_name)
                 if state == "Abort":
-                    if inputs.input_print_ > 0:
+                    if swiss.print_ > 0:
                         print('Aborting due to error filling home page form')
                     continue
             flights = swiss.get_flights()
@@ -1502,9 +1502,10 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                 if details[f'price_{fare.lower()}'] == "Sold Out":
                     if len(flights_fare_options) > 1 and len(flights_services) > 1 and len(flights_seats) > 1:
                         sold_out = True
-                        fare_options_sold_out = flights_fare_options[-1]
-                        services_sold_out = flights_services[-1]
-                        seats_sold_out = flights_seats[-1]
+                        fare_options_sold_out = flights_fare_options[-2]
+                        services_sold_out = flights_services[-2]
+                        seats_sold_out = flights_seats[-2]
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
@@ -1516,6 +1517,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                             'seats': seats_sold_out
                         }
                     else:
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
@@ -1536,46 +1538,46 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     state = swiss.fill_home_page_form(formatted_date, origin_name, destination_name)
 
                     if state == "Abort":
-                        if inputs.input_print_ > 0:
+                        if swiss.print_ > 0:
                             print('Aborting due to error filling home page form')
                         continue
-                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     flights = swiss.get_flights()
                     if flights == "Abort":
-                        if inputs.input_print_ > 0:
+                        if swiss.print_ > 0:
                             print('Aborting due to error getting flights')
                         continue
-                    if inputs.input_print_ > 2:
+                    if swiss.print_ > 2:
                         print(f'Number of flights: {len(flights)}')
                     fare_options = swiss.advance_to_your_selection_page(flights, fare_name=current_fare_name, index=j)
                     if fare_options == "Abort":
-                        if inputs.input_print_ > 0:
+                        if swiss.print_ > 0:
                             print('Aborting due to error advancing to form page')
                         continue
                     flights_fare_options.append(fare_options)
                     if "Swiss" in airliner:
                         state = swiss.advance_to_passenger_form_page(flights, index=j)
                         if state == "Abort":
-                            if inputs.input_print_ > 0:
+                            if swiss.print_ > 0:
                                 print('Aborting due to error advancing to passenger form page')
                             continue
                         state = swiss.fill_passenger_form()
                         if state == "Abort":
-                            if inputs.input_print_ > 0:
+                            if swiss.print_ > 0:
                                 print('Aborting due to error filling passenger form')
                             continue
                         services = swiss.get_bags_and_info(fare)
                         if services == "Abort":
-                            if inputs.input_print_ > 0:
+                            if swiss.print_ > 0:
                                 print('Aborting due to error getting services')
                             continue
                         flights_services.append(services)
                         seats = swiss.get_flight_seats(fare)
                         if seats == "Abort":
-                            if inputs.input_print_ > 0:
+                            if swiss.print_ > 0:
                                 print('Aborting due to error getting seats')
                             continue
                         flights_seats.append(seats)
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
@@ -1587,6 +1589,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                             'seats': seats
                         }
                     else:
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
@@ -1611,11 +1614,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     write_to_csv_row(writer, data, first, sold_out=sold_out)
 
     else:
+        if swiss.print_ > 0:
+            print('No flights found')
         flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(j+1)
-
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         data = {
             'current_time': current_time,
-            'airliner': 'Swiss Air',
+            'airliner': airliner,
             'flight_ID': flight_id,
             'observation_ID': 'N/A',
             'details': 'No flights found',
@@ -1623,9 +1628,23 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
             'services': 'No flights found',
             'seats': 'No flights found'
         }
+        for fare in fares:
+            filename = filename_partial + '_' + fare + '.csv'
+            file_exists = os.path.isfile(filename)
+            file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+            if file_exists and file_not_empty:
+                mode = 'a'
+                first = False
+            else:
+                mode = 'w'
+                first = True
+            with open(filename, mode=mode, newline='') as file:
+                writer = csv.writer(file)
+                write_to_csv_row(writer, data, first)
 
 
-    if inputs.input_print_ > 2:
+
+    if swiss.print_ > 2:
         print(flights_details)
         print(flights_seats)
 
@@ -1635,7 +1654,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="Get information about flights page form for EasyJet")
+    parser = argparse.ArgumentParser(description="Get information about flights page form for Swiss Air")
 
     parser.add_argument('--origin-name', required=True, help='Origin airport name')
     parser.add_argument('--origin', required=True, help='Origin airport code')

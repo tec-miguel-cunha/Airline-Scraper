@@ -1,4 +1,5 @@
 # import libraries
+import argparse
 import os
 import threading
 import urllib3
@@ -33,15 +34,15 @@ if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
 }
 """
 
-current_origin = "Lisbon"
-current_destination = "Madrid"
-current_origin_code = "LIS"
-current_destination_code = "MAD"
-current_flyout_date = "09/09/2024"
-current_fare_name = "Economy"
+current_origin = ''
+current_destination = ''
+current_origin_code = ''
+current_destination_code = ''
+current_flyout_date = ''
+current_fare_name = ''
 
 def flatten_dict(d, parent_key='', sep='_'):
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -60,17 +61,51 @@ def flatten_dict(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", item))
         else:
             items.append((new_key, v))
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
-def write_to_csv_row(writer, data, first=False):
-    if inputs.input_print_ > 1:
+def flatten_dict_with_na(d, parent_key='', sep='_'):
+    if inputs.iberia_print_ > 1:
+        print('Flattening dictionary')
+    items = []
+    for k, v in d.items():
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+            items.append((k, v))
+            continue
+        if k == 'details':
+            flattened_details = flatten_dict(v)
+            items.append((k, flattened_details))
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        elif isinstance(v, list):
+            if len(v) == 1 and isinstance(v[0], dict):
+                # Flatten the single dictionary element in the list
+                items.extend(flatten_dict(v[0], new_key, sep=sep).items())
+            else:
+                for i, item in enumerate(v):
+                    if isinstance(item, dict):
+                        items.extend(flatten_dict(item, f"{new_key}_{i}", sep=sep).items())
+                    else:
+                        items.append((f"{new_key}_{i}", 'N/A'))
+        else:
+            items.append((new_key, 'N/A'))
+    if inputs.iberia_print_ > 1:
+        print('Returning items from falatten_dict')
+    return dict(items)
+
+def write_to_csv_row(writer, data, first=False, sold_out=False):
+    if inputs.iberia_print_ > 1:
         print('Writing to CSV row')
     # Flatten the details and seats data
-    flattened_data = flatten_dict(data)
+    if sold_out:
+        flattened_data = flatten_dict_with_na(data)
+        flattened_data = flatten_dict(flattened_data)
+    else:
+        flattened_data = flatten_dict(data)
     if first:
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print('Writing header row')
         # Write the header row
         header = list(flattened_data.keys())
@@ -79,134 +114,135 @@ def write_to_csv_row(writer, data, first=False):
     row = list(flattened_data.values())
     # Write the row to the CSV file
     writer.writerow(row)
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print('Wrote flattened data')
 
+
 def check_and_close_popup(driver):
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print('Checking and closing popup')
     try:
         # Check for overlay element
-        overlay = WebDriverWait(driver, timeout=inputs.input_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
+        overlay = WebDriverWait(driver, timeout=inputs.iberia_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
         if overlay:
             # Find and click the close button
             close_button = overlay.find_element(By.CSS_SELECTOR, "[class*='close-sc closeStyle1-sc']")
             if close_button:
                 close_button.click()
-                if inputs.input_print_ > 1:
+                if inputs.iberia_print_ > 1:
                     print('Overlay closed')
         else:
-            if inputs.input_print_ > 1:
+            if inputs.iberia_print_ > 1:
                 print('No overlay found')
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.iberia_print_ > 0:
             print(f'Exception occurred: {e}')
 
 def is_element_in_view(driver, element):
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print('Checking if element is in view')
     # Check if the element is displayed
     if element.is_displayed():
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print('Element is displayed')
         return True
     else:
         # Scroll the element into view
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print('Trying to scroll element into view')
         driver.execute_script("arguments[0].scrollIntoView();", element)
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print('Scrolled element into view')
         # Check again if the element is displayed after scrolling
         return element.is_displayed()
 
-def check_element_exists_by_ID(driver, id, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_ID(driver, id, timeout=inputs.iberia_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print(f'Checking if element exists by ID: {id}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.ID, id)))
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.iberia_print_ > 0:
             print(f'No element by ID: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.iberia_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print(f'Checking if element exists by CSS: {css}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print('Element exists')
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.iberia_print_ > 0:
             print(f'No element by CSS Selector: {e}')
         element_exists = False
     return element_exists
 
-def check_element_NOT_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.input_timeout_checks):
+def check_element_NOT_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.iberia_timeout_checks):
     element_not_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print(f'Checking if element not exists by CSS: {css}')
     try:
         WebDriverWait(driver, timeout=timeout).until_not(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print("Passed WebDriverWait")
         element_not_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.iberia_print_ > 0:
             print(f'Element exists by CSS Selector: {e}')
         element_not_exists = False
     return element_not_exists
 
-def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.iberia_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print(f'Checking if element exists by Tag Name: {tag}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.TAG_NAME, tag)))
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.iberia_print_ > 0:
             print(f'No element by Tag Name: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_XPATH(driver, xpath, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_XPATH(driver, xpath, timeout=inputs.iberia_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print(f'Checking if element exists by XPATH: {xpath}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.iberia_print_ > 0:
             print(f'No element by XPATH: {e}')
         element_exists = False
     return element_exists
 
-def check_and_wait_for_URL(driver, url, timeout=inputs.input_timeout):
-    if inputs.input_print_ > 1:
+def check_and_wait_for_URL(driver, url, timeout=inputs.iberia_timeout):
+    if inputs.iberia_print_ > 1:
         print(f'Checking and waiting for URL: {url}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.url_to_be(url))
-        if inputs.input_print_ > 1:
+        if inputs.iberia_print_ > 1:
             print("Passed WebDriverWait")
         return True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.iberia_print_ > 0:
             print(f'URL not found: {e}')
         return False
 
@@ -214,12 +250,12 @@ class Iberia:
 
     def __init__(self, headless=True):
 
-        self.timeout = inputs.input_timeout
-        self.timeout_cookies = inputs.input_timeout_cookies
-        self.timeout_little = inputs.input_timeout_little
-        self.timeout_implicitly_wait = inputs.input_timeout_implicitly_wait
-        self.timeout_retry_click = inputs.input_timeout_retry_click
-        self.print_ = inputs.input_print_
+        self.timeout = inputs.iberia_timeout
+        self.timeout_cookies = inputs.iberia_timeout_cookies
+        self.timeout_little = inputs.iberia_timeout_little
+        self.timeout_implicitly_wait = inputs.iberia_timeout_implicitly_wait
+        self.timeout_retry_click = inputs.iberia_timeout_retry_click
+        self.print_ = inputs.iberia_print_
         self.cookies = 'not accepted'
         self.GDPR = 'not accepted'
         self.closed_popup_cabin_bags = False
@@ -285,7 +321,7 @@ class Iberia:
             print('Failed to click all buttons after retries')
         return False
 
-    def get_element_by_CSS_SELECTOR(self, element, css, timeout=inputs.input_timeout_checks):
+    def get_element_by_CSS_SELECTOR(self, element, css, timeout=inputs.iberia_timeout_checks):
         if self.print_ > 1:
             print(f'Getting element by CSS: {css}')
         try:
@@ -437,6 +473,7 @@ class Iberia:
             print('Going to next page')
 
     def get_to_flights(self, flyout=current_flyout_date, orig_name=current_origin , orig=current_origin_code, dest_name=current_destination, dest=current_destination_code, repeat=True):
+        
         if self.print_ > 1:
             print('Entering get to flights function')
 
@@ -447,6 +484,8 @@ class Iberia:
         page_url = f'https://www.iberia.com/flights/?market=PT&language=en&appliesOMB=false&splitEndCity=false&initializedOMB=true&flexible=true&TRIP_TYPE=1&BEGIN_CITY_01={orig}&END_CITY_01={dest}&nombreOrigen={orig_name}&nombreDestino={dest_name}&BEGIN_DAY_01={day_2_digits}&BEGIN_MONTH_01={year_and_month_2_digits}&BEGIN_YEAR_01={year}&END_DAY_01=&END_MONTH_01=&END_YEAR_01=&FARE_TYPE=R&quadrigam=IBHMPA&ADT=1&CHD=0&INF=0&BNN=0&YTH=0&YCD=0&residentCode=&familianumerosa=&BV_UseBVCookie=no&boton=Search&bookingMarket=PT#!/availability'
 
         self.driver.get(page_url)
+
+        flights = []
 
         if self.print_ > 1:
             print('Opened Iberia flights page')
@@ -582,6 +621,9 @@ class Iberia:
         else:
             flight = flights[index]
 
+        departure_time = 'N/A'
+        arrival_time = 'N/A'
+
         try:
             if self.print_ > 1:
                 print('Getting flight departure time')
@@ -592,8 +634,15 @@ class Iberia:
                 if check_element_exists_by_TAG_NAME(departure_time_div, 'span'):
                     departure_time = departure_time_div.find_element(By.TAG_NAME, 'span').text
                     departure_time = departure_time.replace('\n', '').replace(' ', '').replace('\"', '')
-                    if self.print_ > 1:
-                        print('Found departure time')
+                    match = re.match(r"(\d{2}:\d{2})", departure_time)
+                    if match:
+                        departure_time = match.group(1)
+                        if self.print_ > 1:
+                            print('Found departure time')
+                    else:
+                        departure_time = 'N/A'
+                        if self.print_ > 1:
+                            print('No departure time found')
                 else:
                     if self.print_ > 1:
                         print('No departure time found')
@@ -614,8 +663,15 @@ class Iberia:
                 if check_element_exists_by_TAG_NAME(arrival_time_div, 'span'):
                     arrival_time = arrival_time_div.find_element(By.TAG_NAME, 'span').text
                     arrival_time = arrival_time.replace('\n', '').replace(' ', '').replace('\"', '')
-                    if self.print_ > 1:
-                        print('Found arrival time')
+                    match = re.match(r"(\d{2}:\d{2})", arrival_time)
+                    if match:
+                        arrival_time = match.group(1)
+                        if self.print_ > 1:
+                            print('Found arrival time')
+                    else:
+                        arrival_time = 'N/A'
+                        if self.print_ > 1:
+                            print('No arrival time found')
                 else:
                     if self.print_ > 1:
                         print('No arrival time found')
@@ -627,7 +683,8 @@ class Iberia:
                 print(f'Error getting arrival time: {e}')
 
         prices = []
-
+        fare = 'N/A'
+        price = 'N/A'
 
         try:
             if self.print_ > 1:
@@ -643,8 +700,7 @@ class Iberia:
                             print('Price button is disabled')
                         if check_element_exists_by_CSS_SELECTOR(price_button, "[class='ib-box-mini-fare__box-title']"):
                             fare = price_button.find_element(By.CSS_SELECTOR, "[class='ib-box-mini-fare__box-title']").text
-                            prices.append({'name': fare, 'price': 'Sold Out'})
-                        
+                            prices.append({'name': fare, 'price': 'Sold Out'})   
                     else:
                         if check_element_exists_by_CSS_SELECTOR(price_button, "[class='ib-box-mini-fare__box-title']"):
                             fare = price_button.find_element(By.CSS_SELECTOR, "[class='ib-box-mini-fare__box-title']").text
@@ -689,7 +745,7 @@ class Iberia:
                 else:
                     button_index = 1
                 if prices_buttons[button_index].get_attribute('disabled') is not None:
-                    return "Continue"
+                    return "Sold Out"
                 button_to_click = prices_buttons[button_index]
                 if self.print_ > 1:
                     print('Found button to click')
@@ -765,7 +821,7 @@ class Iberia:
 
         return fares
     
-    def fill_text_input_fields(self, field, input, tab=False, timeout=inputs.input_timeout_checks):
+    def fill_text_iberia_fields(self, field, input, tab=False, timeout=inputs.iberia_timeout_checks):
 
         if self.print_ > 1:
             print(f'Filling text input field with {input}')
@@ -811,38 +867,16 @@ class Iberia:
         try:
             if self.print_ > 1:
                 print('Filling text fields')
-            self.fill_text_input_fields("[id='name_0']", first_name, timeout=self.timeout_little)
-            self.fill_text_input_fields("[id='first_surname_0']", last_name)
-            self.fill_text_input_fields("[id='IBAIRP_CONTACT_FORM_EMAIL']", email)
-            self.fill_text_input_fields("[id='IBAIRP_CONTACT_FORM_REPEATED_EMAIL']", email)
-            self.fill_text_input_fields("[id='IBAIRP_CONTACT_FORM_PHONE']", phone)
+            self.fill_text_iberia_fields("[id='name_0']", first_name, timeout=self.timeout_little)
+            self.fill_text_iberia_fields("[id='first_surname_0']", last_name)
+            self.fill_text_iberia_fields("[id='IBAIRP_CONTACT_FORM_EMAIL']", email)
+            self.fill_text_iberia_fields("[id='IBAIRP_CONTACT_FORM_REPEATED_EMAIL']", email)
+            self.fill_text_iberia_fields("[id='IBAIRP_CONTACT_FORM_PHONE']", phone)
             if self.print_ > 1:
                 print('Filled text fields')	
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error filling text fields: {e}')
-
-        # try:
-        #     if self.print_ > 1:
-        #         print('Clicking on remember data checkbox')
-        #     if check_element_exists_by_ID(self.driver, 'save_passengers_data'):
-        #         remember_checkbox = self.driver.find_element(By.ID, 'save_passengers_data')
-        #         if remember_checkbox.is_selected():
-        #             if self.print_ > 1:
-        #                 print('Checkbox already checked')
-        #         else:
-        #             remember_checkbox.click()
-        #             if self.print_ > 1:
-        #                 print('Clicked on remember data checkbox')
-        #         if self.print_ > 1:
-        #             print('Clicked on remember data checkbox')
-        #         self.saved_data = True
-        #     else:
-        #         if self.print_ > 1:
-        #             print('No remember data checkbox found')
-        # except Exception as e:
-        #     if self.print_ > 0:
-        #         print(f'Error clicking on remember data checkbox: {e}')
 
         try:
             if self.print_ > 1:
@@ -858,7 +892,6 @@ class Iberia:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error clicking continue button: {e}')
-
 
         if self.print_ > 1:
             print('Exiting fill passenger form function')
@@ -1089,14 +1122,14 @@ class Iberia:
             if self.print_ > 0:
                 print(f'Error getting zones prices: {e}')
 
+        seats_infos.append({'name': 'free', 'price': 0, 'available': 0, 'unavailable': 0})
+
         if fare_name == 'Economy':
             for seat_info in seats_infos:
                 print(seat_info)
                 if seat_info['name'] == 'promo':
                     price_promo = seat_info['price']
-            seats_infos.append({'name': 'free', 'price': int(price_promo)+2, 'available': 0, 'unavailable': 0})
-        else:
-            seats_infos.append({'name': 'free', 'price': 0, 'available': 0, 'unavailable': 0})
+                    seats_infos[-1]['price'] = int(price_promo)+2
 
         zone = 'upfront'
 
@@ -1128,23 +1161,21 @@ class Iberia:
         return seats_infos
 
 
-if __name__ == "__main__":
+def main(origin_name, origin_code, destination_name, destination_code, date):
         
     iberia = Iberia(headless=False)
-    filename = 'Iberia_' + time.strftime("%d-%m-%Y") + '.csv'
-    file_exists = os.path.isfile(filename)
-    file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+    
     airliner = 'Iberia'
+    filename_partial = airliner + '_' + time.strftime("%d-%m-%Y")
+
     flights_details = []
     flights_seats = []
-    flyout = current_flyout_date
-    origin_code = current_origin_code
-    origin_name = current_origin
-    destination_code = current_destination_code
-    destination_name = current_destination
-    fare_name = current_fare_name
+    flights_fares = []
+    flights_infos = []
 
     fare_names = ['Economy', 'Business']
+
+    flyout = datetime.strptime(date, '%Y/%m/%d').strftime('%d/%m/%Y')
 
     flights = iberia.get_to_flights(flyout=flyout, orig_name=origin_name, orig=origin_code, dest_name=destination_name, dest=destination_code, repeat=False)
 
@@ -1157,18 +1188,19 @@ if __name__ == "__main__":
             print("Error")
             iberia.driver.quit()
             exit()
-    if iberia.print_ > 2:
-        print(f'Found {len(flights)} flights')
 
     if flights is not None:
+        if iberia.print_ > 2:
+            print(f'Found {len(flights)} flights')
         for i in range(len(flights)):
             flight_id = flyout.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             for j in range(len(fare_names)):
+                sold_out = False
+                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 observation_id = f'{flight_id}_{fare_names[j]}'
-                current_fare_name = fare_names[j]
+                fare_name = fare_names[j]
                 if not (i == 0 and j == 0):
-                    flights = iberia.get_to_flights(flyout=current_flyout_date, orig_name=current_origin, orig=current_origin_code, dest_name=current_destination, dest=current_destination_code)
+                    flights = iberia.get_to_flights(flyout=flyout, orig_name=origin_name, orig=origin_code, dest_name=destination_name, dest=destination_code)
                     if flights == "Error":
                         print("Error")
                         iberia.driver.quit()
@@ -1179,51 +1211,119 @@ if __name__ == "__main__":
                             iberia.driver.quit()
                             exit()
                 details = iberia.get_flight_details(flights, index = i)
-                flights_details.append(details)
-                fares = iberia.advance_to_passenger_form_page(flights, index = i, fare_name = fare_names[j])
-                if fares == "Continue":
-                    data = {
-                        'time': current_time,
-                        'airliner': airliner,
-                        'flight_ID': flight_id,
-                        'observation_id': observation_id,
-                        'details': details,
-                    }
+                if details['prices'][j]['price'] == 'Sold Out': 
+                    if len(flights_seats) > 1 and len(flights_fares) > 1 and len(flights_infos) > 1:
+                        sold_out = True
+                        fares_sold_out = flights_fares[-2]
+                        infos_sold_out = flights_infos[-2]
+                        seats_sold_out = flights_seats[-2]
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        data = {
+                            'current_time': current_time,
+                            'airliner': airliner,
+                            'flight_id': flight_id,
+                            'observation_id': observation_id,
+                            'details': details,
+                            'fares': fares_sold_out,
+                            'infos': infos_sold_out,
+                            'seats': seats_sold_out
+                        }
+                    else:
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        data = {
+                            'current_time': current_time,
+                            'airliner': airliner,
+                            'flight_id': flight_id,
+                            'observation_id': observation_id,
+                            'details': details,
+                            'fares': "Sold Out",
+                            'infos': "Sold Out",
+                            'seats': "Sold Out"
+                        }
                 else:
+                    flights_details.append(details)
+                    fares = iberia.advance_to_passenger_form_page(flights, index = i, fare_name = fare_names[j])
+                    flights_fares.append(fares)
                     iberia.fill_passenger_form()
                     infos = iberia.get_bag_info()
-                    seats = iberia.get_seats()
+                    flights_infos.append(infos)
+                    seats = iberia.get_seats(fare_name = fare_names[j])
                     flights_seats.append(seats)
+                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     data = {
-                        'time': current_time,
+                        'current_time': current_time,
                         'airliner': airliner,
-                        'flight_ID': flight_id,
+                        'flight_id': flight_id,
                         'observation_id': observation_id,
                         'details': details,
                         'fares': fares,
                         'infos': infos,
                         'seats': seats
-                }
-                if(i == 0):
-                    if file_exists and file_not_empty:
-                        mode = 'a'
-                        first = False
-                    else:
-                        mode = 'w'
-                        first = True
-                    with open(filename, mode=mode, newline='') as file:
-                        writer = csv.writer(file)
-                        write_to_csv_row(writer, data, first)
+                    }
+                filename = filename_partial + '_' + fare_name + '.csv'
+                file_exists = os.path.isfile(filename)
+                file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+                if file_exists and file_not_empty:
+                    mode = 'a'
+                    first = False
                 else:
-                    with open(filename, mode='a', newline='') as file:
-                        writer = csv.writer(file)
-                        write_to_csv_row(writer, data)
+                    mode = 'w'
+                    first = True
+                with open(filename, mode=mode, newline='') as file:
+                    writer = csv.writer(file)
+                    write_to_csv_row(writer, data, first, sold_out=sold_out)
+    else:
+        flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(j+1)
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        data = {
+            'current_time': current_time,
+            'airliner': airliner,
+            'flight_ID': flight_id,
+            'observation_ID': 'N/A',
+            'details': 'No flights found',
+            'fares': 'No flights found',
+            'services': 'No flights found',
+            'seats': 'No flights found'
+        }
+        for fare in fare_names:
+            filename = filename_partial + '_' + fare + '.csv'
+            file_exists = os.path.isfile(filename)
+            file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+            if file_exists and file_not_empty:
+                mode = 'a'
+                first = False
+            else:
+                mode = 'w'
+                first = True
+            with open(filename, mode=mode, newline='') as file:
+                writer = csv.writer(file)
+                write_to_csv_row(writer, data, first)
 
     if iberia.print_ > 2:
         print(flights_details)
         print(flights_seats)
 
     iberia.driver.quit()
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Get information about flights page form for Swiss Air")
+
+    parser.add_argument('--origin-name', required=True, help='Origin airport name')
+    parser.add_argument('--origin', required=True, help='Origin airport code')
+    parser.add_argument('--destination-name', required=True, help='Destination airport name')
+    parser.add_argument('--destination', required=True, help='Destination airport code')
+    parser.add_argument('--date', required=True, help='Flight date in YYYYY/MM/DD format')
+
+    args = parser.parse_args()
+
+    current_destination = args.destination_name
+    current_origin = args.origin_name
+    current_flyout_date = args.date
+    current_fare_name = 'Economy'
+
+    main(origin_name=args.origin_name, origin_code=args.origin, destination_name=args.destination_name, destination_code=args.destination, date=args.date)
 
 
         

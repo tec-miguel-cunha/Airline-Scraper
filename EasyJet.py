@@ -1020,16 +1020,15 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
     easyjet.fill_home_page_form(date, origin_code, destination_code)
     flights = easyjet.get_flights()
 
-    if inputs.easyjet_print_ > 2:
-        print(f'Number of flights: {len(flights)}')
 
     if flights is not None:
+        if inputs.easyjet_print_ > 2:
+            print(f'Number of flights: {len(flights)}')
         for i in range(0, len(flights)):
             sold_out = False
             luggage_prices = []
             flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
             observation_id = flight_id
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if not i == 0:
                 easyjet.search_from_home_page()
                 flights = easyjet.get_flights()
@@ -1044,6 +1043,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     fare_sold_out = flights_fares[-2]
                     seats_sold_out = flights_seats[-2]
                     luggage_sold_out = flights_luggage[-2]
+                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     data = {
                         'time': current_time,
                         'airliner': airliner,
@@ -1055,6 +1055,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         'seats': seats_sold_out
                     }
                 else:
+                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     data = {
                         'time': current_time,
                         'airliner': airliner,
@@ -1074,6 +1075,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                 luggage_prices.append(cabin_bags)
                 luggage_prices.append(hold_bags)
                 flights_luggage.append(luggage_prices)
+                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 data = {
                     'time': current_time,
                     'airliner': airliner,
@@ -1099,6 +1101,32 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     writer = csv.writer(file)
                     write_to_csv_row(writer, data, sold_out=sold_out)
 
+    else:
+        if easyjet.print_ > 0:
+            print('No flights found. Assuming that the flights are sold out.')
+        flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(1)
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        data = {
+            'current_time': current_time,
+            'airliner': airliner,
+            'flight_ID': flight_id,
+            'observation_ID': 'N/A',
+            'details': 'No flights found',
+            'fares': 'No flights found',
+            'services': 'No flights found',
+            'seats': 'No flights found'
+        }
+        file_exists = os.path.isfile(filename)
+        file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+        if file_exists and file_not_empty:
+            mode = 'a'
+            first = False
+        else:
+            mode = 'w'
+            first = True
+        with open(filename, mode=mode, newline='') as file:
+            writer = csv.writer(file)
+            write_to_csv_row(writer, data, first)
 
     if easyjet.print_ > 1:
         print(flights_details)
@@ -1109,9 +1137,6 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
 
     if easyjet.print_ > 1:
         print('Driver closed')
-            
-
-    
 
 
 if __name__ == '__main__':
@@ -1127,75 +1152,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(origin_name=args.origin_name, origin_code=args.origin, destination_name=args.destination_name, destination_code=args.destination, date=args.date)
-
-
-# if __name__ == '__main__':
-#     # create the object
-#     easyjet = EasyJet(headless=True)
-
-#     filename = 'EasyJet_' + time.strftime("%d-%m-%Y") + '.csv'
-#     file_exists = os.path.isfile(filename)
-#     file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
-#     airliner = 'EasyJet'
-#     flights_details = []
-#     flights_seats = []
-
-#     # get the data
-#     easyjet.fill_home_page_form('2024/09/09', 'LIS', 'MAD')
-#     flights = easyjet.get_flights()
-
-#     if inputs.easyjet_print_ > 2:
-#         print(f'Number of flights: {len(flights)}')
-
-#     if flights is not None:
-#         for i in range(0, len(flights)):
-#             luggage_prices = []
-#             flight_id = '09-09-2024_' + 'LIS-' + 'MAD_' + str(i+1)
-#             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-#             if not i == 0:
-#                 easyjet.search_from_home_page()
-#                 flights = easyjet.get_flights()
-#             details = easyjet.get_flight_details(flights[i])
-#             flights_details.append(details)
-#             fares = easyjet.advance_to_seats(flights[i])
-#             seats = easyjet.get_flight_seats()
-#             flights_seats.append(seats)
-#             cabin_bags = easyjet.get_cabin_bags()
-#             hold_bags = easyjet.get_hold_bags()
-#             luggage_prices.append(cabin_bags)
-#             luggage_prices.append(hold_bags)
-#             data = {
-#                 'time': current_time,
-#                 'airliner': airliner,
-#                 'flight_ID': flight_id,
-#                 'details': details,
-#                 'fares': fares,
-#                 'infos': luggage_prices,
-#                 'seats': seats
-#             }
-#             if(i == 0):
-#                 if file_exists and file_not_empty:
-#                     mode = 'a'
-#                     first = False
-#                 else:
-#                     mode = 'w'
-#                     first = True
-#                 with open(filename, mode=mode, newline='') as file:
-#                     writer = csv.writer(file)
-#                     write_to_csv_row(writer, data, first)
-#             else:
-#                 with open(filename, mode='a', newline='') as file:
-#                     writer = csv.writer(file)
-#                     write_to_csv_row(writer, data)
-
-
-#     if easyjet.print_ > 1:
-#         print(flights_details)
-#         print(flights_seats)
-
-#     # close the driver
-#     easyjet.close()
-
-#     if easyjet.print_ > 1:
-#         print('Driver closed')
-            
