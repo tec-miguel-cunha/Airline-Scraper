@@ -13,13 +13,14 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 import chromedriver_autoinstaller
 import json
+import argparse
 import inputs
 import re
 from datetime import datetime
 import csv
 
 def flatten_dict(d, parent_key='', sep='_'):
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -38,17 +39,17 @@ def flatten_dict(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", item))
         else:
             items.append((new_key, v))
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
 def write_to_csv_row(writer, data, first=False):
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print('Writing to CSV row')
     # Flatten the details and seats data
     flattened_data = flatten_dict(data)
     if first:
-        if inputs.input_print_ > 1:
+        if inputs.ryanair_print_ > 1:
             print('Writing header row')
         # Write the header row
         header = list(flattened_data.keys())
@@ -57,103 +58,107 @@ def write_to_csv_row(writer, data, first=False):
     row = list(flattened_data.values())
     # Write the row to the CSV file
     writer.writerow(row)
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print('Wrote flattened data')
 
 def check_and_close_popup(driver):
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print('Checking and closing popup')
     try:
         # Check for overlay element
-        overlay = WebDriverWait(driver, timeout=inputs.input_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
+        overlay = WebDriverWait(driver, timeout=inputs.ryanair_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
         if overlay:
             # Find and click the close button
             close_button = overlay.find_element(By.CSS_SELECTOR, "[class*='close-sc closeStyle1-sc']")
             if close_button:
                 close_button.click()
-                if inputs.input_print_ > 1:
+                if inputs.ryanair_print_ > 1:
                     print('Overlay closed')
         else:
-            if inputs.input_print_ > 1:
+            if inputs.ryanair_print_ > 1:
                 print('No overlay found')
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.ryanair_print_ > 0:
             print(f'Exception occurred: {e}')
 
 def is_element_in_view(driver, element):
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print('Checking if element is in view')
     # Check if the element is displayed
     if element.is_displayed():
-        if inputs.input_print_ > 1:
+        if inputs.ryanair_print_ > 1:
             print('Element is displayed')
         return True
     else:
         # Scroll the element into view
-        if inputs.input_print_ > 1:
+        if inputs.ryanair_print_ > 1:
             print('Trying to scroll element into view')
         driver.execute_script("arguments[0].scrollIntoView();", element)
-        if inputs.input_print_ > 1:
+        if inputs.ryanair_print_ > 1:
             print('Scrolled element into view')
         # Check again if the element is displayed after scrolling
         return element.is_displayed()
 
-def check_element_exists_by_ID(driver, id, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_ID(driver, id, timeout=inputs.ryanair_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print(f'Checking if element exists by ID: {id}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.ID, id)))
-        if inputs.input_print_ > 1:
+        if inputs.ryanair_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.ryanair_print_ > 0:
             print(f'No element by ID: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.ryanair_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print(f'Checking if element exists by CSS: {css}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
-        if inputs.input_print_ > 1:
+        if inputs.ryanair_print_ > 1:
             print("Passed WebDriverWait")
         driver.find_element(By.CSS_SELECTOR, css)
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.ryanair_print_ > 0:
             print(f'No element by CSS Selector: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.ryanair_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.ryanair_print_ > 1:
         print(f'Checking if element exists by Tag Name: {tag}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.TAG_NAME, tag)))
-        if inputs.input_print_ > 1:
+        if inputs.ryanair_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.ryanair_print_ > 0:
             print(f'No element by Tag Name: {e}')
         element_exists = False
     return element_exists
+
 
 class RyanAir:
 
     def __init__(self, headless=True):
 
-        self.timeout = inputs.input_timeout
-        self.timeout_cookies = inputs.input_timeout_cookies
-        self.timeout_little = inputs.input_timeout_little
-        self.timeout_implicitly_wait = inputs.input_timeout_implicitly_wait
-        self.cookies = inputs.input_cookies
-        self.print_ = inputs.input_print_
+        self.timeout = inputs.ryanair_timeout
+        self.timeout_cookies = inputs.ryanair_timeout_cookies
+        self.timeout_little = inputs.ryanair_timeout_little
+        self.timeout_micro = inputs.ryanair_timeout_micro
+        self.timeout_checks = inputs.ryanair_timeout_checks
+        self.timeout_implicitly_wait = inputs.ryanair_timeout_implicitly_wait
+        self.cookies = inputs.ryanair_cookies
+        self.print_ = inputs.ryanair_print_
+
 
         self.buttons = []
 
@@ -212,18 +217,21 @@ class RyanAir:
             print('Failed to click all buttons after retries')
         return False
 
-    def get_flights(self, flyout, orig, dest, adults='1', teens='0', children='0', infants='0'):
+    def get_flights(self, flyout, orig, dest, retries=0, adults='1', teens='0', children='0', infants='0', from_home_page=False):
         # set url
         if self.print_ > 1:
             print('Getting flights')
         
         formatted_date = datetime.strptime(flyout, '%Y/%m/%d').strftime('%Y-%m-%d')
 
-        url = f'https://www.ryanair.com/gb/en/trip/flights/select?adults=2&teens=0&children=0&infants=0&dateOut={formatted_date}&dateIn=&isConnectedFlight=false&discount=0&isReturn=false&promoCode=&originIata={orig}&destinationIata={dest}&tpAdults={adults}&tpTeens={teens}&tpChildren={children}&tpInfants={infants}&tpStartDate={flyout}&tpEndDate=&tpDiscount=0&tpPromoCode=&tpOriginIata={orig}&tpDestinationIata={dest}'
-        self.driver.get(url)
+        if not from_home_page:
+            url = f'https://www.ryanair.com/gb/en/trip/flights/select?adults={adults}&teens=0&children=0&infants=0&dateOut={formatted_date}&dateIn=&isConnectedFlight=false&discount=0&isReturn=false&promoCode=&originIata={orig}&destinationIata={dest}&tpAdults={adults}&tpTeens={teens}&tpChildren={children}&tpInfants={infants}&tpStartDate={formatted_date}&tpEndDate=&tpDiscount=0&tpPromoCode=&tpOriginIata={orig}&tpDestinationIata={dest}'
+            self.driver.get(url)
+            self.driver.implicitly_wait(self.timeout_implicitly_wait)
+
         if self.cookies == "not accepted":
             try:
-                if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-ref*='cookie.accept-all']"):
+                if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-ref*='cookie.accept-all']", timeout=self.timeout_cookies):
                     self.click_with_retry(self.driver.find_element(By.CSS_SELECTOR, "[data-ref*='cookie.accept-all']"))
                     self.cookies = "accepted"
                     if self.print_ > 1:
@@ -235,18 +243,36 @@ class RyanAir:
                 if self.print_ > 0:
                     print(f'Error accepting cookies: {e}')
         
-        if check_element_exists_by_TAG_NAME(self.driver, 'flight-card-new'):
-            if self.print_ > 1:
-                print('Found flight-card-new: one card with a flight')
-            try:
+        try:    
+            if check_element_exists_by_TAG_NAME(self.driver, 'flight-card-new', timeout=self.timeout):
+                if self.print_ > 1:
+                    print('Found flight-card-new: one card with a flight')
                 flight_list = self.driver.find_element(By.TAG_NAME, 'flight-list')
                 flights = flight_list.find_elements(By.TAG_NAME, 'flight-card-new')
                 if self.print_ > 1:
                     print('Found flight cards')
                 return flights
-            except Exception as e:
+            else:
                 if self.print_ > 0:
-                    print(f'Error getting flights: {e}')
+                    print('No flight cards found')
+                self.driver.refresh()
+                if self.print_ > 1:
+                    print('Refreshed page')
+                if retries < 3:
+                    flights = self.get_flights(flyout, orig, dest, retries+1)
+                    return flights
+                else:
+                    return None
+        except Exception as e:
+            if self.print_ > 0:
+                print(f'Error getting flights: {e}')
+            self.driver.refresh()
+            if self.print_ > 1:
+                print('Refreshed page')
+            if retries < 3:
+                flights = self.get_flights(flyout, orig, dest, retries+1)
+                return flights
+            else:
                 return None
     
     def get_flight_details(self, flight):
@@ -303,7 +329,7 @@ class RyanAir:
         try:
             if check_element_exists_by_TAG_NAME(flight, 'flights-price-simple'):
                 price_element = flight.find_element(By.TAG_NAME, 'flights-price-simple')
-                price = price_element.find_element(By.CSS_SELECTOR, "[class*='price__integers']").text + ',' + price_element.find_element(By.CSS_SELECTOR, "[class*='price__decimals']").text
+                price = price_element.text
                 price = price.replace(' ', '')
             else:
                 price = 'N/A'
@@ -447,7 +473,7 @@ class RyanAir:
                 extra_price = '0'
                 if "--dark-blue" in extra_price_seats_element.get_attribute("class") and not XL_front:
                     extra_price = extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__integers']").text + ','
-                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']"):
+                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']", timeout=self.timeout_micro):
                         extra_price = extra_price + extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__decimals']").text
                     else:
                         extra_price = extra_price + '00'
@@ -458,7 +484,7 @@ class RyanAir:
                     XL_front = True
                 if "--yellow" in extra_price_seats_element.get_attribute("class") and not quick:
                     extra_price = extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__integers']").text + ','
-                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']"):
+                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']", timeout=self.timeout_micro):
                         extra_price = extra_price + extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__decimals']").text
                     else:
                         extra_price = extra_price + '00'
@@ -469,7 +495,7 @@ class RyanAir:
                     quick = True
                 if "--light-blue" in extra_price_seats_element.get_attribute("class") and not best_front:
                     extra_price = extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__integers']").text + ','
-                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']"):
+                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']", timeout=self.timeout_micro):
                         extra_price = extra_price + extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__decimals']").text
                     else:
                         extra_price = extra_price + '00'
@@ -480,7 +506,7 @@ class RyanAir:
                     best_front = True
                 if "--dark-blue" in extra_price_seats_element.get_attribute("class") and not XL_back:
                     extra_price = extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__integers']").text + ','
-                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']"):
+                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']", timeout=self.timeout_micro):
                         extra_price = extra_price + extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__decimals']").text
                     else:
                         extra_price = extra_price + '00'
@@ -491,7 +517,7 @@ class RyanAir:
                     XL_back = True
                 if "--light-blue" in extra_price_seats_element.get_attribute("class") and not best_back:
                     extra_price = extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__integers']").text + ','
-                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']"):
+                    if check_element_exists_by_CSS_SELECTOR(extra_price_seats_element, "[class*='price__decimals']", timeout=self.timeout_micro):
                         extra_price = extra_price + extra_price_seats_element.find_element(By.CSS_SELECTOR, "[class*='price__decimals']").text
                     else:
                         extra_price = extra_price + '00'
@@ -515,11 +541,82 @@ class RyanAir:
                 'seats_XL_back_unavailable': seats_XL_back[1],
                 'seats_best_back_available': seats_best_back[0],
                 'seats_best_back_unavailable': seats_best_back[1]
-            }     
+            }  
 
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error getting extra prices: {e}')
+
+        try:
+            if self.print_ > 1:
+                print('Trying to click on select seats later button')
+            if check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='seats-container__buttons-container']"):
+                seats_buttons_div = self.driver.find_element(By.CSS_SELECTOR, "[class*='seats-container__buttons-container']")
+                select_seats_buttons = seats_buttons_div.find_elements(By.TAG_NAME, 'button')
+                if len(select_seats_buttons) == 2:
+                    self.click_with_retry(select_seats_buttons[1])
+                if self.print_ > 1:
+                    print('Clicked on select seats later button')
+            else:
+                if self.print_ > 0:
+                    print('Select seats later button not found')
+        except Exception as e:
+            if self.print_ > 0:
+                print(f'Error clicking select seats later button: {e}')
+
+        try:
+            if self.print_ > 1:
+                print('Trying to click on continue button')
+            if check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='reinforcement-message__buttons-container']"):
+                reinforcement_message_div = self.driver.find_element(By.CSS_SELECTOR, "[class*='reinforcement-message__buttons-container']")
+                continue_buttons = reinforcement_message_div.find_elements(By.TAG_NAME, 'button')
+                if len(continue_buttons) == 2:
+                    for button in continue_buttons:
+                        if 'without' in button.text:
+                            self.click_with_retry(button)
+                            if self.print_ > 1:
+                                print('Clicked on continue button')
+            else:
+                if self.print_ > 0:
+                    print('Continue button not found')
+        except Exception as e:
+            if self.print_ > 0:
+                print(f'Error clicking continue button: {e}')
+
+        try:
+            if self.print_ > 1:
+                print('Trying to click on continue without seats button on popup')
+            if check_element_exists_by_TAG_NAME(self.driver, 'ry-dialog'):
+                popup = self.driver.find_element(By.TAG_NAME, 'ry-dialog')
+                if check_element_exists_by_TAG_NAME(popup, 'button'):
+                    continue_without_seats_buttons = popup.find_elements(By.TAG_NAME, 'button')
+                    time.sleep(1)
+                    for button in continue_without_seats_buttons:
+                        if self.print_ > 2:
+                            print(f'Button text: {button.text}')
+                        if 'random' in button.text or 'Continue' in button.text:
+                            self.click_with_retry(button)
+                            if self.print_ > 1:
+                                print('Clicked on continue without seats button on popup')
+                            break
+                        else:
+                            if self.print_ > 0:
+                                print('Continue without seats button not found on popup')
+                else:
+                    if self.print_ > 0:
+                        print('No buttons found on popup')
+            else:
+                if self.print_ > 0:
+                    print('Popup not found')
+        except Exception as e:
+            if self.print_ > 0:
+                print(f'Error clicking continue without seats button on popup: {e}')
+
+
+        if self.print_ > 1:
+            print('Returning seats data')
+            print('Going to next page')
+                
         
         return seats_data
 
@@ -771,18 +868,64 @@ class RyanAir:
             
         #     print(f'Error clicking on continue button: {e}')     
 
+    def decide_seats_or_bags_page(self, retries=0):
+
+        if self.print_ > 1:
+            print('Deciding between seats or bags page')
+        
+        try:
+            if check_element_exists_by_TAG_NAME(self.driver, 'seat-map', timeout=self.timeout):
+                if self.print_ > 1:
+                    print('Going to seats page')
+                return 'seats'
+            else:
+                if check_element_exists_by_TAG_NAME(self.driver, 'bags-cabin-bag-table-controls', timeout=self.timeout):
+                    if self.print_ > 1:
+                        print('Going to luggage page')
+                    return 'luggage'
+                else:
+                    if self.print_ > 0:
+                        print('Neither seats nor luggage found. Trying to solve the problem')
+                    if retries < 3:
+                        self.driver.refresh()
+                        if self.print_ > 1:
+                            print('Refreshed page')
+                        return self.decide_seats_or_bags_page(retries+1)
+                    else:
+                        return None
+        except Exception as e:
+            if self.print_ > 0:
+                print(f'Error deciding between seats or bags page: {e}')
+            if retries < 3:
+                self.driver.refresh()
+                if self.print_ > 1:
+                    print('Refreshed page')
+                return self.decide_seats_or_bags_page(retries+1)
+            else:
+                return None
+            
+    
     def get_info_luggage_page(self):
+
         if self.print_ > 1:
             print('Getting luggage info')
-        
+
         try:
             if self.print_ > 1:
                 print('Trying to wait for radio button to load')
-            if check_element_exists_by_CSS_SELECTOR(self.driver, "[id*='ry-radio-button--0']"):
-                radio_button_small_bag = self.driver.find_element(By.CSS_SELECTOR, "[id*='ry-radio-button--0']")
-                self.click_with_retry(radio_button_small_bag)
-                if self.print_ > 1:
-                    print('Selected small bag')
+            if check_element_exists_by_TAG_NAME(self.driver, 'ry-radio-circle-button'):
+                radio_button_small_bag = self.driver.find_element(By.TAG_NAME, 'ry-radio-circle-button')
+                if self.click_with_retry(radio_button_small_bag):
+                    if self.print_ > 1:
+                        print('Selected small bag')
+                else:
+                    if self.print_ > 1:
+                        print('Error selecting small bag. Trying to solve the problem')
+                    if check_element_exists_by_CSS_SELECTOR(self.driver, "[class='ry-radio-button']", timeout=self.timeout):
+                        radio_button_small_bag = self.driver.find_element(By.CSS_SELECTOR, "[class='ry-radio-button']")
+                        if self.click_with_retry(radio_button_small_bag):
+                            if self.print_ > 0:
+                                print('Small bag radio button not found.')
             else:
                 if self.print_ > 0:
                     print('Small bag radio button not found. Trying to solve the problem')
@@ -791,11 +934,14 @@ class RyanAir:
             if self.print_ > 0:
                 print(f'Error selecting small bag: {e}. Trying to solve the problem')
             # TODO: Implement button logic to solve the problem
+
+        luggage_prices = []
         
         try:
             if self.print_ > 1:
                 print('Trying to get extra luggage prices')
-            luggage_prices = {'10 Kg': 'N/A', '20 Kg': 'N/A'}
+            luggage_prices.append({'name': '10Kg', 'price': 'N/A'})
+            luggage_prices.append({'name': '20Kg', 'price': 'N/A'})
             if check_element_exists_by_TAG_NAME(self.driver, 'bags-checkin-bag-table-controls'):
                 extra_luggage_div = self.driver.find_element(By.TAG_NAME, 'bags-checkin-bag-table-controls')
 
@@ -809,7 +955,7 @@ class RyanAir:
                 extra_price_ten_kg = extra_price_ten_kg.replace(' ', '')
                 extra_price_ten_kg = extra_price_ten_kg.replace('\n', '')
                 extra_price_ten_kg = extra_price_ten_kg.replace('€', '')
-                luggage_prices['10 Kg'] = extra_price_ten_kg
+                luggage_prices[0]['price'] = extra_price_ten_kg
 
                 # 20 Kg bag
                 twenty_kg_bag_div = extra_luggage_div.find_element(By.TAG_NAME, 'bags-twenty-kg-bags')
@@ -821,11 +967,11 @@ class RyanAir:
                 extra_price_twenty_kg = extra_price_twenty_kg.replace(' ', '')
                 extra_price_twenty_kg = extra_price_twenty_kg.replace('\n', '')
                 extra_price_twenty_kg = extra_price_twenty_kg.replace('€', '')
-                luggage_prices['20 Kg'] = extra_price_twenty_kg
+                luggage_prices[1]['price'] = extra_price_twenty_kg
             else:
                 if self.print_ > 0:
                     print('Extra luggage prices not found')
-            if self.print_ > 1 and luggage_prices['10 Kg'] != 'N/A' and luggage_prices['20 Kg'] != 'N/A':
+            if self.print_ > 1 and luggage_prices[0]['price'] != 'N/A' and luggage_prices[1]['price'] != 'N/A':
                 print('Extra luggage prices gotten successfully')
         except Exception as e:
             if self.print_ > 0:
@@ -835,8 +981,10 @@ class RyanAir:
         try:
             if self.print_ > 1:
                 print('Trying to click on continue button')
-            if check_element_exists_by_CSS_SELECTOR(self.driver, "[class*='bags-continue-button']"):
-                self.click_with_retry(self.driver.find_element(By.CSS_SELECTOR, "[class*='bags-continue-button']"))
+            if check_element_exists_by_TAG_NAME(self.driver, 'bags-continue-flow'):
+                button_div = self.driver.find_element(By.TAG_NAME, 'bags-continue-flow')
+                continue_button = button_div.find_element(By.TAG_NAME, 'button')
+                self.click_with_retry(continue_button)
                 if self.print_ > 1:
                     print('Clicked on continue button')
             else:
@@ -855,13 +1003,11 @@ class RyanAir:
             
     # close the driver
     def close(self):
-        self.driver.close()
+        self.driver.quit()
         
 
-
-# test
-if __name__ == '__main__':
-    # create the object
+def main(origin_name, origin_code, destination_name, destination_code, date):
+    
     ryanair = RyanAir(headless=True)
 
     filename = 'RyanAir_' + time.strftime("%d-%m-%Y") + '.csv'
@@ -870,31 +1016,49 @@ if __name__ == '__main__':
     airliner = 'Ryanair'
     flights_details = []
     flights_seats = []
-
+    
     # get the data
-    flights = ryanair.get_flights('2024/09/09', 'LIS', 'MAD')
+    flights = ryanair.get_flights(date, origin_code, destination_code)
 
-    if inputs.input_print_ > 2:
-        print(f'Number of flights: {len(flights)}')
+    if flights is not None:
+        if inputs.ryanair_print_ > 2:
+            print(f'Number of flights: {len(flights)}')
+    else:
+        ryanair.fill_home_page_form(origin_name, origin_code, destination_name, destination_code, date)
+        flights = ryanair.get_flights(date, origin_code, destination_code, from_home_page=True)
+
+    fare_name = ''
 
     if flights is not None:
         for i in range(0, len(flights)):
-            flight_id = '09-09-2024_' + 'LIS-' + 'MAD_' + str(i+1)
+            flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
+            observation_ID = flight_id + fare_name
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            flights = ryanair.get_flights('2024-09-09', 'LIS', 'MAD')
+            if not i == 0:
+                flights = ryanair.get_flights(date, origin_code, destination_code)
             details = ryanair.get_flight_details(flights[i])
             flights_details.append(details)
             fares = ryanair.fill_form_flights_page()
-            luggage_prices = ryanair.get_info_luggage_page()
-            seats = ryanair.get_flight_seats()
-            flights_seats.append(seats)
+            if ryanair.decide_seats_or_bags_page() == 'seats':
+                seats = ryanair.get_flight_seats()
+                flights_seats.append(seats)
+                luggage_prices = ryanair.get_info_luggage_page()
+            elif ryanair.decide_seats_or_bags_page() == 'luggage':
+                luggage_prices = ryanair.get_info_luggage_page()
+                seats = ryanair.get_flight_seats()
+                flights_seats.append(seats)
+            else:
+                seats = 'N/A'
+                luggage_prices = 'N/A'
+                continue
             data = {
                 'time': current_time,
                 'airliner': airliner,
                 'flight_ID': flight_id,
+                'observation_ID': observation_ID,
                 'details': details,
                 'fares': fares,
-                'luggage_prices': luggage_prices,
+                'infos': luggage_prices,
                 'seats': seats
             }
             if(i == 0):
@@ -912,10 +1076,24 @@ if __name__ == '__main__':
                     writer = csv.writer(file)
                     write_to_csv_row(writer, data)
 
-
     if ryanair.print_ > 1:
         print(flights_details)
         print(flights_seats)
 
-    # close the driver
     ryanair.close()
+
+
+# test
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Fill the flights page form for Ryanair")
+
+    parser.add_argument('--origin-name', required=False, help='Origin airport name')
+    parser.add_argument('--origin', required=True, help='Origin airport code')
+    parser.add_argument('--destination-name', required=False, help='Destination airport name')
+    parser.add_argument('--destination', required=True, help='Destination airport code')
+    parser.add_argument('--date', required=True, help='Flight date in YYYYY/MM/DD format')
+
+    args = parser.parse_args()
+
+    main(origin_name=args.origin_name, origin_code=args.origin, destination_name=args.destination_name, destination_code=args.destination, date=args.date)
