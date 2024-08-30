@@ -1,4 +1,5 @@
 # import libraries
+import argparse
 import os
 import sys
 import threading
@@ -33,13 +34,13 @@ if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
 }
 """
 
-current_origin = "Lisbon"
-current_destination = "Geneva, all airports"
-current_flyout_date = "09/09/2024"
-current_fare_name = "Economy"
+current_fare_name = ''
+current_flyout_date = ''
+current_origin = ''
+current_destination = ''
 
 def flatten_dict(d, parent_key='', sep='_'):
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -58,17 +59,51 @@ def flatten_dict(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", item))
         else:
             items.append((new_key, v))
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
-def write_to_csv_row(writer, data, first=False):
-    if inputs.input_print_ > 1:
+def flatten_dict_with_na(d, parent_key='', sep='_'):
+    if inputs.easyjet_print_ > 1:
+        print('Flattening dictionary')
+    items = []
+    for k, v in d.items():
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+            items.append((k, v))
+            continue
+        if k == 'details':
+            flattened_details = flatten_dict(v)
+            items.append((k, flattened_details))
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        elif isinstance(v, list):
+            if len(v) == 1 and isinstance(v[0], dict):
+                # Flatten the single dictionary element in the list
+                items.extend(flatten_dict(v[0], new_key, sep=sep).items())
+            else:
+                for i, item in enumerate(v):
+                    if isinstance(item, dict):
+                        items.extend(flatten_dict(item, f"{new_key}_{i}", sep=sep).items())
+                    else:
+                        items.append((f"{new_key}_{i}", 'N/A'))
+        else:
+            items.append((new_key, 'N/A'))
+    if inputs.easyjet_print_ > 1:
+        print('Returning items from falatten_dict')
+    return dict(items)
+
+def write_to_csv_row(writer, data, first=False, sold_out=False):
+    if inputs.easyjet_print_ > 1:
         print('Writing to CSV row')
     # Flatten the details and seats data
-    flattened_data = flatten_dict(data)
+    if sold_out:
+        flattened_data = flatten_dict_with_na(data)
+        flattened_data = flatten_dict(flattened_data)
+    else:
+        flattened_data = flatten_dict(data)
     if first:
-        if inputs.input_print_ > 1:
+        if inputs.easyjet_print_ > 1:
             print('Writing header row')
         # Write the header row
         header = list(flattened_data.keys())
@@ -77,7 +112,7 @@ def write_to_csv_row(writer, data, first=False):
     row = list(flattened_data.values())
     # Write the row to the CSV file
     writer.writerow(row)
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print('Wrote flattened data')
 
 def check_and_close_popup(driver):
@@ -624,6 +659,12 @@ class SwissAir:
             if self.print_ > 0:
                 print(f'Error getting to flight results page: {e}')
             return "Abort"
+        
+        airliner = 'N/A'
+        departure_flyout_time = 'N/A'
+        arrival_flyout_time = 'N/A'
+        price_economy = 'N/A'
+        price_business = 'N/A'
 
         try:
             if check_element_exists_by_CSS_SELECTOR(flight, "[class='operating-airline-name']"):
@@ -727,6 +768,7 @@ class SwissAir:
         else:
             flight = flights[index]
 
+
         try:
             if check_element_exists_by_CSS_SELECTOR(flight, "[class='flight-card-button-section ng-star-inserted']"):
                 buttons_section = flight.find_element(By.CSS_SELECTOR, "[class='flight-card-button-section ng-star-inserted']")
@@ -756,7 +798,13 @@ class SwissAir:
                 time.sleep(5)
                 fares = self.advance_to_your_selection_page(flights, index, fare_name, repeat=True)
                 if len(fares) != 0:
+                    if self.print_ > 1:
+                        print('Returning fares')
                     return fares
+                else:
+                    if self.print_ > 0:
+                        print('Returning Abort')
+                    return "Abort"
         except Exception as e:
             if self.print_ > 0:
                 print(f'Exception occurred trying to advance to form page: {e}')
@@ -772,7 +820,13 @@ class SwissAir:
                 if retries > 0:
                     fares = self.advance_to_your_selection_page(flights, index, fare_name, repeat=True, retries=retries-1)
                     if len(fares) != 0:
+                        if self.print_ > 1:
+                            print('Returning fares')
                         return fares
+                    else:
+                        if self.print_ > 0:
+                            print('Returning Abort')
+                        return "Abort"
                 else:
                     if self.print_ > 0:
                         print('Failed to find panel')
@@ -794,7 +848,13 @@ class SwissAir:
                     print('No ul found')
                 fares = self.advance_to_your_selection_page(flights, index, fare_name, repeat=True)
                 if len(fares) != 0:
+                    if self.print_ > 1:
+                        print('Returning fares')
                     return fares
+                else:
+                    if self.print_ > 0:
+                        print('Returning Abort')
+                    return "Abort"
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error finding ul: {e}')
@@ -811,7 +871,13 @@ class SwissAir:
                     print('No li found')
                 fares = self.advance_to_your_selection_page(flights, index, fare_name, repeat=True)
                 if len(fares) != 0:
+                    if self.print_ > 1:
+                        print('Returning fares')
                     return fares
+                else:
+                    if self.print_ > 0:
+                        print('Returning Abort')
+                    return "Abort"
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error finding li: {e}')
@@ -897,9 +963,11 @@ class SwissAir:
                     print('Not in your selection page')
                 for i in range(self.retries):
                     self.driver.refresh()
-                    flights = self.advance_to_your_selection_page(flights, index, repeat=True)
-                    if flights == "Abort":
-                        return "Abort"
+                    fares = self.advance_to_your_selection_page(flights, index, repeat=True)
+                    if len(fares) != 0:
+                        if self.print_ > 1:
+                            print('Returning fares')
+                        return fares
                     if not check_and_wait_for_URL(self.driver, page_url, timeout=self.timeout):
                         abort = True
                         break
@@ -932,7 +1000,8 @@ class SwissAir:
             print('Exiting advance to form page function')
             print('Going to next page')
 
-        return fares
+        return "OK"
+
     
     def fill_text_input_fields(self, field, input, tab=False):
 
@@ -1383,23 +1452,22 @@ class SwissAir:
     def close(self):
         self.driver.quit()
 
-if __name__ == '__main__':
-    # create the object
+
+def main(origin_name, origin_code, destination_name, destination_code, date):
+
     swiss = SwissAir(headless=True)
 
-    filename = 'SwissAir_' + time.strftime("%d-%m-%Y") + '.csv'
-    file_exists = os.path.isfile(filename)
-    file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+    airliner = "Swiss Air"
+    filename_partial = airliner.replace(' ', '') + '_' + time.strftime("%d-%m-%Y")
     fares = ["Economy", "Business"]
     flights_details = []
     flights_seats = []
+    flights_fare_options = []
+    flights_services = []
 
     # Loop here for the flights inputs
-
-    current_origin = 'Lisbon'
-    current_destination = 'Geneva, all airports'
-    current_flyout_date = '09/09/2024'
-    state = swiss.fill_home_page_form('09/09/2024', 'Lisbon', 'Geneva, all airports')
+    formatted_date = datetime.strptime(date, '%Y/%m/%d').strftime('%d/%m/%Y')
+    state = swiss.fill_home_page_form(formatted_date, origin_name, destination_name)
     if state == "Abort":
         if inputs.input_print_ > 0:
             print('Aborting due to error filling home page form')
@@ -1415,97 +1483,123 @@ if __name__ == '__main__':
     if inputs.input_print_ > 2:
         print(f'Number of flights: {len(flights)}')
 
-    for j in range(0,len(flights)):
-        flight_id = '09-09-2024_' + 'LIS-' + 'GVA_' + str(j+1)
-        if j != 0:
-            state = swiss.fill_home_page_form(current_flyout_date, current_origin, current_destination)
-            if state == "Abort":
-                if inputs.input_print_ > 0:
-                    print('Aborting due to error filling home page form')
-                continue
-        flights = swiss.get_flights()
-        airliner, details = swiss.get_flight_details(flights, j)
-        flights_details.append(details)
-        for i in range(len(fares)):
-            fare = fares[i]
-            if fare == "Economy" and details['price_economy'] == "Sold Out":
-                data = {
-                    'time': current_time,
-                    'airliner': airliner,
-                    'flight_ID': flight_id,
-                    'details': details
-                }
-            if fare == "Business" and details['price_business'] == "Sold Out":
-                data = {
-                    'time': current_time,
-                    'airliner': airliner,
-                    'flight_ID': flight_id,
-                    'details': details
-                }
-            else:    
-                # Add logic to exclude flights that are sold out
-                flyout = current_flyout_date
-                orig = current_origin
-                dest = current_destination
-                current_fare_name = fare
-                state = swiss.fill_home_page_form(current_flyout_date, current_origin, current_destination)
+    if flights is not None:
+        for j in range(0,len(flights)):
+            flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(j+1)
+            if j != 0:
+                state = swiss.fill_home_page_form(formatted_date, origin_name, destination_name)
                 if state == "Abort":
                     if inputs.input_print_ > 0:
                         print('Aborting due to error filling home page form')
                     continue
-                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                flights = swiss.get_flights()
-                if flights == "Abort":
-                    if inputs.input_print_ > 0:
-                        print('Aborting due to error getting flights')
-                    continue
-                if inputs.input_print_ > 2:
-                    print(f'Number of flights: {len(flights)}')
-                fare_options = swiss.advance_to_your_selection_page(flights, fare_name=current_fare_name, index=j)
-                if fare_options == "Abort":
-                    if inputs.input_print_ > 0:
-                        print('Aborting due to error advancing to form page')
-                    continue
-                if "Swiss" in airliner:
-                    state = swiss.advance_to_passenger_form_page(flights, index=j)
+            flights = swiss.get_flights()
+            airliner, details = swiss.get_flight_details(flights, j)
+            flights_details.append(details)
+            for i in range(len(fares)):
+                sold_out = False
+                fare = fares[i]
+                observation_id = flight_id + '_' + fare
+                if details[f'price_{fare.lower()}'] == "Sold Out":
+                    if len(flights_fare_options) > 1 and len(flights_services) > 1 and len(flights_seats) > 1:
+                        sold_out = True
+                        fare_options_sold_out = flights_fare_options[-1]
+                        services_sold_out = flights_services[-1]
+                        seats_sold_out = flights_seats[-1]
+                        data = {
+                            'current_time': current_time,
+                            'airliner': airliner,
+                            'flight_id': flight_id,
+                            'observation_id': observation_id,
+                            'details': details,
+                            'fares': fare_options_sold_out,
+                            'services': services_sold_out,
+                            'seats': seats_sold_out
+                        }
+                    else:
+                        data = {
+                            'current_time': current_time,
+                            'airliner': airliner,
+                            'flight_ID': flight_id,
+                            'observation_ID': observation_id,
+                            'details': details,
+                            'fares': 'Sold Out',
+                            'services': 'Sold Out',
+                            'seats': 'Sold Out'
+                        }
+
+                else:    
+                    # Add logic to exclude flights that are sold out
+                    flyout = current_flyout_date
+                    orig = current_origin
+                    dest = current_destination
+                    current_fare_name = fare
+                    state = swiss.fill_home_page_form(formatted_date, origin_name, destination_name)
+
                     if state == "Abort":
                         if inputs.input_print_ > 0:
-                            print('Aborting due to error advancing to passenger form page')
+                            print('Aborting due to error filling home page form')
                         continue
-                    state = swiss.fill_passenger_form()
-                    if state == "Abort":
+                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    flights = swiss.get_flights()
+                    if flights == "Abort":
                         if inputs.input_print_ > 0:
-                            print('Aborting due to error filling passenger form')
+                            print('Aborting due to error getting flights')
                         continue
-                    services = swiss.get_bags_and_info(fare)
-                    if services == "Abort":
+                    if inputs.input_print_ > 2:
+                        print(f'Number of flights: {len(flights)}')
+                    fare_options = swiss.advance_to_your_selection_page(flights, fare_name=current_fare_name, index=j)
+                    if fare_options == "Abort":
                         if inputs.input_print_ > 0:
-                            print('Aborting due to error getting services')
+                            print('Aborting due to error advancing to form page')
                         continue
-                    seats = swiss.get_flight_seats(fare)
-                    if seats == "Abort":
-                        if inputs.input_print_ > 0:
-                            print('Aborting due to error getting seats')
-                        continue
-                    flights_seats.append(seats)
-                    data = {
-                        'time': current_time,
-                        'airliner': airliner,
-                        'flight_ID': flight_id,
-                        'details': details,
-                        'fares': fare_options,
-                        'services': services,
-                        'seats': seats
-                    }
-                else:
-                    data = {
-                        'time': current_time,
-                        'airliner': airliner,
-                        'flight_ID': flight_id,
-                        'details': details,
-                        'fares': fare_options
-                    }
-            if(j == 0 and fare == "Economy"):
+                    flights_fare_options.append(fare_options)
+                    if "Swiss" in airliner:
+                        state = swiss.advance_to_passenger_form_page(flights, index=j)
+                        if state == "Abort":
+                            if inputs.input_print_ > 0:
+                                print('Aborting due to error advancing to passenger form page')
+                            continue
+                        state = swiss.fill_passenger_form()
+                        if state == "Abort":
+                            if inputs.input_print_ > 0:
+                                print('Aborting due to error filling passenger form')
+                            continue
+                        services = swiss.get_bags_and_info(fare)
+                        if services == "Abort":
+                            if inputs.input_print_ > 0:
+                                print('Aborting due to error getting services')
+                            continue
+                        flights_services.append(services)
+                        seats = swiss.get_flight_seats(fare)
+                        if seats == "Abort":
+                            if inputs.input_print_ > 0:
+                                print('Aborting due to error getting seats')
+                            continue
+                        flights_seats.append(seats)
+                        data = {
+                            'current_time': current_time,
+                            'airliner': airliner,
+                            'flight_ID': flight_id,
+                            'observation_ID': observation_id,
+                            'details': details,
+                            'fares': fare_options,
+                            'services': services,
+                            'seats': seats
+                        }
+                    else:
+                        data = {
+                            'current_time': current_time,
+                            'airliner': airliner,
+                            'flight_ID': flight_id,
+                            'observation_ID': observation_id,
+                            'details': details,
+                            'fares': fare_options, 
+                            'services': 'N/A',
+                            'seats': 'N/A'
+                        }
+                filename = filename_partial + '_' + fare + '.csv'
+                file_exists = os.path.isfile(filename)
+                file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
                 if file_exists and file_not_empty:
                     mode = 'a'
                     first = False
@@ -1514,11 +1608,22 @@ if __name__ == '__main__':
                     first = True
                 with open(filename, mode=mode, newline='') as file:
                     writer = csv.writer(file)
-                    write_to_csv_row(writer, data, first)
-            else:
-                with open(filename, mode='a', newline='') as file:
-                    writer = csv.writer(file)
-                    write_to_csv_row(writer, data)
+                    write_to_csv_row(writer, data, first, sold_out=sold_out)
+
+    else:
+        flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(j+1)
+
+        data = {
+            'current_time': current_time,
+            'airliner': 'Swiss Air',
+            'flight_ID': flight_id,
+            'observation_ID': 'N/A',
+            'details': 'No flights found',
+            'fares': 'No flights found',
+            'services': 'No flights found',
+            'seats': 'No flights found'
+        }
+
 
     if inputs.input_print_ > 2:
         print(flights_details)
@@ -1528,23 +1633,22 @@ if __name__ == '__main__':
     swiss.close()
 
 
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Get information about flights page form for EasyJet")
+
+    parser.add_argument('--origin-name', required=True, help='Origin airport name')
+    parser.add_argument('--origin', required=True, help='Origin airport code')
+    parser.add_argument('--destination-name', required=True, help='Destination airport name')
+    parser.add_argument('--destination', required=True, help='Destination airport code')
+    parser.add_argument('--date', required=True, help='Flight date in YYYYY/MM/DD format')
+
+    args = parser.parse_args()
+
+    current_destination = args.destination_name
+    current_origin = args.origin_name
+    current_flyout_date = args.date
+    current_fare_name = 'Economy'
 
 
-
-
-
-        
-                
-
-                        
-
-                
-        
-
-        
-
-
-
-
-                
-
+    main(origin_name=args.origin_name, origin_code=args.origin, destination_name=args.destination_name, destination_code=args.destination, date=args.date)

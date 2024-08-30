@@ -1,4 +1,5 @@
 # import libraries
+import argparse
 import os
 import threading
 import urllib3
@@ -33,7 +34,7 @@ if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
 """
 
 def flatten_dict(d, parent_key='', sep='_'):
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -52,17 +53,51 @@ def flatten_dict(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", item))
         else:
             items.append((new_key, v))
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
-def write_to_csv_row(writer, data, first=False):
-    if inputs.input_print_ > 1:
+def flatten_dict_with_na(d, parent_key='', sep='_'):
+    if inputs.easyjet_print_ > 1:
+        print('Flattening dictionary')
+    items = []
+    for k, v in d.items():
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+            items.append((k, v))
+            continue
+        if k == 'details':
+            flattened_details = flatten_dict(v)
+            items.append((k, flattened_details))
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        elif isinstance(v, list):
+            if len(v) == 1 and isinstance(v[0], dict):
+                # Flatten the single dictionary element in the list
+                items.extend(flatten_dict(v[0], new_key, sep=sep).items())
+            else:
+                for i, item in enumerate(v):
+                    if isinstance(item, dict):
+                        items.extend(flatten_dict(item, f"{new_key}_{i}", sep=sep).items())
+                    else:
+                        items.append((f"{new_key}_{i}", 'N/A'))
+        else:
+            items.append((new_key, 'N/A'))
+    if inputs.easyjet_print_ > 1:
+        print('Returning items from falatten_dict')
+    return dict(items)
+
+def write_to_csv_row(writer, data, first=False, sold_out=False):
+    if inputs.easyjet_print_ > 1:
         print('Writing to CSV row')
     # Flatten the details and seats data
-    flattened_data = flatten_dict(data)
+    if sold_out:
+        flattened_data = flatten_dict_with_na(data)
+        flattened_data = flatten_dict(flattened_data)
+    else:
+        flattened_data = flatten_dict(data)
     if first:
-        if inputs.input_print_ > 1:
+        if inputs.easyjet_print_ > 1:
             print('Writing header row')
         # Write the header row
         header = list(flattened_data.keys())
@@ -71,88 +106,88 @@ def write_to_csv_row(writer, data, first=False):
     row = list(flattened_data.values())
     # Write the row to the CSV file
     writer.writerow(row)
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print('Wrote flattened data')
 
 def check_and_close_popup(driver):
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print('Checking and closing popup')
     try:
         # Check for overlay element
-        overlay = WebDriverWait(driver, timeout=inputs.input_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
+        overlay = WebDriverWait(driver, timeout=inputs.easyjet_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
         if overlay:
             # Find and click the close button
             close_button = overlay.find_element(By.CSS_SELECTOR, "[class*='close-sc closeStyle1-sc']")
             if close_button:
                 close_button.click()
-                if inputs.input_print_ > 1:
+                if inputs.easyjet_print_ > 1:
                     print('Overlay closed')
         else:
-            if inputs.input_print_ > 1:
+            if inputs.easyjet_print_ > 1:
                 print('No overlay found')
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.easyjet_print_ > 0:
             print(f'Exception occurred: {e}')
 
 def is_element_in_view(driver, element):
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print('Checking if element is in view')
     # Check if the element is displayed
     if element.is_displayed():
-        if inputs.input_print_ > 1:
+        if inputs.easyjet_print_ > 1:
             print('Element is displayed')
         return True
     else:
         # Scroll the element into view
-        if inputs.input_print_ > 1:
+        if inputs.easyjet_print_ > 1:
             print('Trying to scroll element into view')
         driver.execute_script("arguments[0].scrollIntoView();", element)
-        if inputs.input_print_ > 1:
+        if inputs.easyjet_print_ > 1:
             print('Scrolled element into view')
         # Check again if the element is displayed after scrolling
         return element.is_displayed()
 
-def check_element_exists_by_ID(driver, id, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_ID(driver, id, timeout=inputs.easyjet_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print(f'Checking if element exists by ID: {id}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.ID, id)))
-        if inputs.input_print_ > 1:
+        if inputs.easyjet_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.easyjet_print_ > 0:
             print(f'No element by ID: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.easyjet_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print(f'Checking if element exists by CSS: {css}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
-        if inputs.input_print_ > 1:
+        if inputs.easyjet_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.easyjet_print_ > 0:
             print(f'No element by CSS Selector: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.easyjet_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.easyjet_print_ > 1:
         print(f'Checking if element exists by Tag Name: {tag}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.TAG_NAME, tag)))
-        if inputs.input_print_ > 1:
+        if inputs.easyjet_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.easyjet_print_ > 0:
             print(f'No element by Tag Name: {e}')
         element_exists = False
     return element_exists
@@ -161,12 +196,12 @@ class EasyJet:
 
     def __init__(self, headless=True):
 
-        self.timeout = inputs.input_timeout
-        self.timeout_cookies = inputs.input_timeout_cookies
-        self.timeout_little = inputs.input_timeout_little
-        self.timeout_implicitly_wait = inputs.input_timeout_implicitly_wait
-        self.cookies = inputs.input_cookies
-        self.print_ = inputs.input_print_
+        self.timeout = inputs.easyjet_timeout
+        self.timeout_cookies = inputs.easyjet_timeout_cookies
+        self.timeout_little = inputs.easyjet_timeout_little
+        self.timeout_implicitly_wait = inputs.easyjet_timeout_implicitly_wait
+        self.cookies = inputs.easyjet_cookies
+        self.print_ = inputs.easyjet_print_
         self.closed_popup_cabin_bags = False
         self.new_tab_opened = False
 
@@ -524,7 +559,7 @@ class EasyJet:
         if self.print_ > 1:
             print('Getting Flight Details')
 
-        date = ''
+        date = 'N/A'
         fares_buttons = []
 
         try:
@@ -564,8 +599,10 @@ class EasyJet:
             self.get_flight_details(flight)
 
         fares = []
-        departure_time = ''
-        arrival_time = ''
+        departure_time = 'N/A'
+        arrival_time = 'N/A'
+        standard_price = 'N/A'
+        flexi_price = 'N/A'
         
         try:
             if self.print_ > 1:
@@ -608,17 +645,21 @@ class EasyJet:
             if self.print_ > 1:
                 print('Clicking on Select Button')
             if check_element_exists_by_CSS_SELECTOR(flight, "[class*='flight-grid-flight-fare ej-text standard']"):
-                self.click_with_retry(flight.find_element(By.CSS_SELECTOR, "[class*='flight-grid-flight-fare ej-text standard']"))
-                if self.print_ > 1:
-                    print('Clicked on Select Button')
+                if self.click_with_retry(flight.find_element(By.CSS_SELECTOR, "[class*='flight-grid-flight-fare ej-text standard']")):
+                    if self.print_ > 1:
+                        print('Clicked on Select Button')
+                else:
+                    if self.print_ > 1:
+                        print('Failed to click on Select Button')
+                    return "Sold Out"
             else:
                 if self.print_ > 1:
                     print('No Select Button found')
-                    self.advance_to_seats(flight)
+                return "Sold Out"
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error clicking on Select Button: {e}')
-            self.advance_to_seats(flight)
+            return "Sold Out"
 
         try:
             if self.print_ > 1:
@@ -959,9 +1000,10 @@ class EasyJet:
     def close(self):
         self.driver.quit()
 
-            
-if __name__ == '__main__':
-    # create the object
+
+
+def main(origin_name, origin_code, destination_name, destination_code, date):
+
     easyjet = EasyJet(headless=True)
 
     filename = 'EasyJet_' + time.strftime("%d-%m-%Y") + '.csv'
@@ -969,19 +1011,24 @@ if __name__ == '__main__':
     file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
     airliner = 'EasyJet'
     flights_details = []
+    flights_fares = []
     flights_seats = []
+    flights_luggage = []
+    sold_out = False
 
     # get the data
-    easyjet.fill_home_page_form('2024/09/09', 'LIS', 'MAD')
+    easyjet.fill_home_page_form(date, origin_code, destination_code)
     flights = easyjet.get_flights()
 
-    if inputs.input_print_ > 2:
+    if inputs.easyjet_print_ > 2:
         print(f'Number of flights: {len(flights)}')
 
     if flights is not None:
         for i in range(0, len(flights)):
+            sold_out = False
             luggage_prices = []
-            flight_id = '09-09-2024_' + 'LIS-' + 'MAD_' + str(i+1)
+            flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
+            observation_id = flight_id
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if not i == 0:
                 easyjet.search_from_home_page()
@@ -989,21 +1036,54 @@ if __name__ == '__main__':
             details = easyjet.get_flight_details(flights[i])
             flights_details.append(details)
             fares = easyjet.advance_to_seats(flights[i])
-            seats = easyjet.get_flight_seats()
-            flights_seats.append(seats)
-            cabin_bags = easyjet.get_cabin_bags()
-            hold_bags = easyjet.get_hold_bags()
-            luggage_prices.append(cabin_bags)
-            luggage_prices.append(hold_bags)
-            data = {
-                'time': current_time,
-                'airliner': airliner,
-                'flight_ID': flight_id,
-                'details': details,
-                'fares': fares,
-                'luggage_prices': luggage_prices,
-                'seats': seats
-            }
+            if fares == 'Sold Out':
+                if inputs.easyjet_print_ > 2:
+                    print(f'Flight {i+1} is sold out')
+                if i == 0:
+                    data = {
+                        'time': current_time,
+                        'airliner': airliner,
+                        'flight_ID': flight_id,
+                        'observation_ID': observation_id,
+                        'details': details,
+                        'fares': 'Sold Out',
+                        'infos': 'Sold Out',
+                        'seats': 'Sold Out'
+                    }
+                else:
+                    sold_out = True
+                    fare_sold_out = flights_fares[-1]
+                    seats_sold_out = flights_seats[-1]
+                    luggage_sold_out = flights_luggage[-1]
+                    data = {
+                        'time': current_time,
+                        'airliner': airliner,
+                        'flight_ID': flight_id,
+                        'observation_ID': observation_id,
+                        'details': details,
+                        'fares': fare_sold_out,
+                        'infos': luggage_sold_out,
+                        'seats': seats_sold_out
+                    }
+            else:
+                flights_fares.append(fares)
+                seats = easyjet.get_flight_seats()
+                flights_seats.append(seats)
+                cabin_bags = easyjet.get_cabin_bags()
+                hold_bags = easyjet.get_hold_bags()
+                luggage_prices.append(cabin_bags)
+                luggage_prices.append(hold_bags)
+                flights_luggage.append(luggage_prices)
+                data = {
+                    'time': current_time,
+                    'airliner': airliner,
+                    'flight_ID': flight_id,
+                    'observation_ID': observation_id,
+                    'details': details,
+                    'fares': fares,
+                    'infos': luggage_prices,
+                    'seats': seats
+                }
             if(i == 0):
                 if file_exists and file_not_empty:
                     mode = 'a'
@@ -1013,11 +1093,11 @@ if __name__ == '__main__':
                     first = True
                 with open(filename, mode=mode, newline='') as file:
                     writer = csv.writer(file)
-                    write_to_csv_row(writer, data, first)
+                    write_to_csv_row(writer, data, first, sold_out=sold_out)
             else:
                 with open(filename, mode='a', newline='') as file:
                     writer = csv.writer(file)
-                    write_to_csv_row(writer, data)
+                    write_to_csv_row(writer, data, sold_out=sold_out)
 
 
     if easyjet.print_ > 1:
@@ -1029,4 +1109,93 @@ if __name__ == '__main__':
 
     if easyjet.print_ > 1:
         print('Driver closed')
+            
+
+    
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(description="Get information about flights page form for EasyJet")
+
+    parser.add_argument('--origin-name', required=False, help='Origin airport name')
+    parser.add_argument('--origin', required=True, help='Origin airport code')
+    parser.add_argument('--destination-name', required=False, help='Destination airport name')
+    parser.add_argument('--destination', required=True, help='Destination airport code')
+    parser.add_argument('--date', required=True, help='Flight date in YYYYY/MM/DD format')
+
+    args = parser.parse_args()
+
+    main(origin_name=args.origin_name, origin_code=args.origin, destination_name=args.destination_name, destination_code=args.destination, date=args.date)
+
+
+# if __name__ == '__main__':
+#     # create the object
+#     easyjet = EasyJet(headless=True)
+
+#     filename = 'EasyJet_' + time.strftime("%d-%m-%Y") + '.csv'
+#     file_exists = os.path.isfile(filename)
+#     file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+#     airliner = 'EasyJet'
+#     flights_details = []
+#     flights_seats = []
+
+#     # get the data
+#     easyjet.fill_home_page_form('2024/09/09', 'LIS', 'MAD')
+#     flights = easyjet.get_flights()
+
+#     if inputs.easyjet_print_ > 2:
+#         print(f'Number of flights: {len(flights)}')
+
+#     if flights is not None:
+#         for i in range(0, len(flights)):
+#             luggage_prices = []
+#             flight_id = '09-09-2024_' + 'LIS-' + 'MAD_' + str(i+1)
+#             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+#             if not i == 0:
+#                 easyjet.search_from_home_page()
+#                 flights = easyjet.get_flights()
+#             details = easyjet.get_flight_details(flights[i])
+#             flights_details.append(details)
+#             fares = easyjet.advance_to_seats(flights[i])
+#             seats = easyjet.get_flight_seats()
+#             flights_seats.append(seats)
+#             cabin_bags = easyjet.get_cabin_bags()
+#             hold_bags = easyjet.get_hold_bags()
+#             luggage_prices.append(cabin_bags)
+#             luggage_prices.append(hold_bags)
+#             data = {
+#                 'time': current_time,
+#                 'airliner': airliner,
+#                 'flight_ID': flight_id,
+#                 'details': details,
+#                 'fares': fares,
+#                 'infos': luggage_prices,
+#                 'seats': seats
+#             }
+#             if(i == 0):
+#                 if file_exists and file_not_empty:
+#                     mode = 'a'
+#                     first = False
+#                 else:
+#                     mode = 'w'
+#                     first = True
+#                 with open(filename, mode=mode, newline='') as file:
+#                     writer = csv.writer(file)
+#                     write_to_csv_row(writer, data, first)
+#             else:
+#                 with open(filename, mode='a', newline='') as file:
+#                     writer = csv.writer(file)
+#                     write_to_csv_row(writer, data)
+
+
+#     if easyjet.print_ > 1:
+#         print(flights_details)
+#         print(flights_seats)
+
+#     # close the driver
+#     easyjet.close()
+
+#     if easyjet.print_ > 1:
+#         print('Driver closed')
             
