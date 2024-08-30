@@ -1039,22 +1039,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
             if fares == 'Sold Out':
                 if inputs.easyjet_print_ > 2:
                     print(f'Flight {i+1} is sold out')
-                if i == 0:
-                    data = {
-                        'time': current_time,
-                        'airliner': airliner,
-                        'flight_ID': flight_id,
-                        'observation_ID': observation_id,
-                        'details': details,
-                        'fares': 'Sold Out',
-                        'infos': 'Sold Out',
-                        'seats': 'Sold Out'
-                    }
-                else:
+                if len(flights_fares) > 1 and len(flights_seats) > 1 and len(flights_luggage) > 1:
                     sold_out = True
-                    fare_sold_out = flights_fares[-1]
-                    seats_sold_out = flights_seats[-1]
-                    luggage_sold_out = flights_luggage[-1]
+                    fare_sold_out = flights_fares[-2]
+                    seats_sold_out = flights_seats[-2]
+                    luggage_sold_out = flights_luggage[-2]
                     data = {
                         'time': current_time,
                         'airliner': airliner,
@@ -1064,6 +1053,17 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         'fares': fare_sold_out,
                         'infos': luggage_sold_out,
                         'seats': seats_sold_out
+                    }
+                else:
+                    data = {
+                        'time': current_time,
+                        'airliner': airliner,
+                        'flight_ID': flight_id,
+                        'observation_ID': observation_id,
+                        'details': details,
+                        'fares': 'Sold Out',
+                        'infos': 'Sold Out',
+                        'seats': 'Sold Out'
                     }
             else:
                 flights_fares.append(fares)
