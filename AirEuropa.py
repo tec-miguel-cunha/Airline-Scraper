@@ -1,6 +1,8 @@
 # import libraries
 import argparse
 import os
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 import threading
 import urllib3
 import time
@@ -243,7 +245,7 @@ def wait_for_loading_to_close(driver, field):
 
 class AirEuropa:
 
-    def __init__(self, headless=True):
+    def __init__(self, headless=False):
 
         self.timeout = inputs.aireuropa_timeout
         self.timeout_cookies = inputs.aireuropa_timeout_checks
@@ -263,8 +265,14 @@ class AirEuropa:
         chromedriver_autoinstaller.install()
         if headless:
             # config headless undetected chromedriver
-            options = uc.ChromeOptions()
-            self.driver = uc.Chrome(options=options)
+            chrome_options = Options()
+            chrome_options.add_argument("--headless")  # No GUI will be opened
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("window-size=1280x752")
+            chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.86 Safari/537.36")
+            chrome_options.add_argument("--disable-infobars")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            self.driver = uc.Chrome(options=chrome_options)
         else:
             self.driver = uc.Chrome()
         if self.print_ > 1:
@@ -1408,7 +1416,7 @@ class AirEuropa:
 def main(origin_name, origin_code, destination_name, destination_code, date):
 
     # create the object
-    aireuropa = AirEuropa(headless=True)
+    aireuropa = AirEuropa(headless=False)
 
     airliner_site = 'AirEuropa'
     date_for_id = datetime.strptime(date, "%Y/%m/%d").strftime('%d-%m-%Y')

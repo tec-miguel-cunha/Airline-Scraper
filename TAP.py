@@ -242,7 +242,7 @@ class TAP:
     
 
 
-    def __init__(self, headless=True):
+    def __init__(self, headless=False):
 
         self.timeout = inputs.tap_timeout
         self.timeout_cookies = inputs.tap_timeout_cookies
@@ -259,6 +259,12 @@ class TAP:
         if headless:
             # config headless undetected chromedriver
             options = uc.ChromeOptions()
+            options.add_argument('--no-sandbox')
+            options.add_argument('--headless')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--disable-extensions')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-software-rasterizer')
             self.driver = uc.Chrome(options=options)
         else:
             self.driver = uc.Chrome()
@@ -1119,7 +1125,7 @@ class TAP:
 def main(origin_name, origin_code, destination_name, destination_code, date):
 
     # create the object
-    tap = TAP(headless=True)
+    tap = TAP(headless=False)
 
     fares = ["Economy", "Business"]
 

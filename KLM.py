@@ -249,7 +249,7 @@ def check_and_wait_for_URL(driver, url, timeout=inputs.klm_timeout):
 
 class KLM:
 
-    def __init__(self, headless=True):
+    def __init__(self, headless=False):
 
         self.timeout = inputs.klm_timeout
         self.timeout_cookies = inputs.klm_timeout_cookies
@@ -272,6 +272,12 @@ class KLM:
         if headless:
             # config headless undetected chromedriver
             options = uc.ChromeOptions()
+            options.add_argument('--no-sandbox')
+            options.add_argument('--headless')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--disable-extensions')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-software-rasterizer')
             self.driver = uc.Chrome(options=options)
         else:
             self.driver = uc.Chrome()

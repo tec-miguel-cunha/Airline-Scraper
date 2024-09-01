@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 import chromedriver_autoinstaller
@@ -248,7 +249,7 @@ def check_and_wait_for_URL(driver, url, timeout=inputs.iberia_timeout):
 
 class Iberia:
 
-    def __init__(self, headless=True):
+    def __init__(self, headless=False):
 
         self.timeout = inputs.iberia_timeout
         self.timeout_cookies = inputs.iberia_timeout_cookies
@@ -271,12 +272,19 @@ class Iberia:
         chromedriver_autoinstaller.install()
         if headless:
             # config headless undetected chromedriver
-            options = uc.ChromeOptions()
-            self.driver = uc.Chrome(options=options)
+            chrome_options = webdriver.ChromeOptions()
+            chrome_options.add_argument("--headless")  # No GUI will be opened
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("window-size=1920x1080")
+            self.driver = webdriver.Chrome(options=chrome_options)
         else:
             self.driver = uc.Chrome()
         if self.print_ > 1:
             print('Initialized Iberia')
+
+        self.driver.get_url = ("https://www.iberia.com/gb/?language=en")
 
     def click_with_retry(self, element, retries=3, delay=1):
         if self.print_ > 1:

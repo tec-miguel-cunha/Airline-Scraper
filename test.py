@@ -1,21 +1,30 @@
-from datetime import datetime
-import csv
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 
-abc = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+def setup_chrome_driver():
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # No GUI will be opened
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-http2")
+    chrome_options.add_argument("--ignore-certificate-errors")
+    chrome_options.add_argument("window-size=1920x1080")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36")
+    chrome_service = Service("/usr/local/bin/chromedriver")
+    driver = webdriver.Chrome(service=chrome_service, options=chrome_options)
+    driver.implicitly_wait(30)
 
-abc = []
+    return driver
 
-abc.append(400)
-
-for i in range(0, len(abc)):
-    print(abc[i])
-
-# date_str = "10/09/2024"
-# date = datetime.strptime(date_str, "%d/%m/%Y")
-# print(date)
-# formatted_date = date.strftime("%B of %Y")
-# print(formatted_date)
-
-# for i in range(1):
-#     print(i)
-
+if __name__ == "__main__":
+    driver = setup_chrome_driver()
+    driver.get("https://www.aireuropa.com/pt/en/home")
+    print(driver.title)
+    time.sleep(10)
+    driver.save_screenshot('Screenshot_test_1.png')
+    driver.refresh()
+    time.sleep(10)
+    driver.quit()

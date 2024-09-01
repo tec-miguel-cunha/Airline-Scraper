@@ -183,7 +183,7 @@ def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.ryanair_timeout
 
 class RyanAir:
 
-    def __init__(self, headless=True):
+    def __init__(self, headless=False):
 
         self.timeout = inputs.ryanair_timeout
         self.timeout_cookies = inputs.ryanair_timeout_cookies
@@ -203,6 +203,12 @@ class RyanAir:
         if headless:
             # config headless undetected chromedriver
             options = uc.ChromeOptions()
+            options.add_argument('--no-sandbox')
+            options.add_argument('--headless')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--disable-extensions')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-software-rasterizer')
             self.driver = uc.Chrome(options=options)
         else:
             self.driver = uc.Chrome()
@@ -1055,7 +1061,7 @@ class RyanAir:
 
 def main(origin_name, origin_code, destination_name, destination_code, date):
     
-    ryanair = RyanAir(headless=True)
+    ryanair = RyanAir(headless=False)
     airliner = 'Ryanair'
 
     filename = airliner + '/' + 'outputs' + '/' + airliner + '_' + time.strftime("%d-%m-%Y") + '.csv'

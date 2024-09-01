@@ -24,7 +24,7 @@ To use the RyanAir class, you will need to create an instance of the class and t
 from RyanAir import RyanAir
 
 # create the object
-ryanair = RyanAir(headless=True)
+ryanair = RyanAir(headless=False)
 
 # get the data
 prices = ryanair.one_way_flight('2023-05-25', 'MAN', 'VLC')
@@ -36,7 +36,7 @@ print(prices)
 ryanair.close()
 ```
 
-In this example, we create an instance of the RyanAir class with `headless=True` to run the scraper in headless mode. We then call the `one_way_flight` method with the departure date, origin airport code, and destination airport code as arguments. This method returns a list of dictionaries containing flight information, including the departure date, departure time, arrival time, and price. Finally, we close the driver to free up system resources.
+In this example, we create an instance of the RyanAir class with `headless=False` to run the scraper in headless mode. We then call the `one_way_flight` method with the departure date, origin airport code, and destination airport code as arguments. This method returns a list of dictionaries containing flight information, including the departure date, departure time, arrival time, and price. Finally, we close the driver to free up system resources.
 
 ## Methods
 

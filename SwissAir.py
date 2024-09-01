@@ -230,7 +230,7 @@ def check_and_wait_for_URL(driver, url, timeout=inputs.swiss_timeout):
 
 class SwissAir:
 
-    def __init__(self, headless=True):
+    def __init__(self, headless=False):
 
         self.timeout = inputs.swiss_timeout
         self.timeout_cookies = inputs.swiss_timeout_cookies
@@ -253,6 +253,12 @@ class SwissAir:
         if headless:
             # config headless undetected chromedriver
             options = uc.ChromeOptions()
+            options.add_argument('--no-sandbox')
+            options.add_argument('--headless')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--disable-extensions')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-software-rasterizer')
             self.driver = uc.Chrome(options=options)
         else:
             self.driver = uc.Chrome()
@@ -1455,7 +1461,7 @@ class SwissAir:
 
 def main(origin_name, origin_code, destination_name, destination_code, date):
 
-    swiss = SwissAir(headless=True)
+    swiss = SwissAir(headless=False)
 
     airliner_site = "SwissAir"
     filename_partial = airliner_site.replace(' ', '') + '/' + 'outputs' + '/' + airliner_site + '_' + time.strftime("%d-%m-%Y")
