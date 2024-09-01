@@ -321,7 +321,7 @@ class AirEuropa:
             print('Failed to click all buttons after retries')
         return False
 
-    def fill_home_page_form(self, flyout, origin_name, origin_code, destination_name, destination_code, repeat=False):
+    def fill_home_page_form(self, flyout, origin_name, origin_code, destination_name, destination_code, repeat=False, retries=0):
 
         if self.print_ > 1:
             print('Entering Fill Form Function')
@@ -348,7 +348,11 @@ class AirEuropa:
             except Exception as e:
                 if self.print_ > 0:
                     print(f'Error accepting cookies: {e}')
-                self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code)
+                if retries < 3:
+                    if self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code, retries=retries+1) == "Abort":
+                        return "Abort"
+                else:
+                    return "Abort"
 
         try:
             if self.print_ > 1:
@@ -365,7 +369,11 @@ class AirEuropa:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error clicking on apply language: {e}. Trying to solve the problem')
-            self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code)
+            if retries < 3:
+                if self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code, retries=retries+1) == "Abort":
+                    return "Abort"
+            else:
+                return "Abort"
 
         wait_for_loading_to_close(self.driver, "[id='ph-refx-spinner-bottom']")
 
@@ -382,7 +390,11 @@ class AirEuropa:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error getting the form: {e}. Trying to solve the problem')
-            self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code)
+            if retries < 3:
+                if self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code, retries=retries+1) == "Abort":
+                    return "Abort"
+            else:
+                return "Abort"
 
         try:
             if self.print_ > 1:
@@ -397,7 +409,11 @@ class AirEuropa:
         except Exception as e:
             if self.print_ > 0:
                 print(f'Error clicking on One Way dropdown: {e}. Trying to solve the problem')
-            self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code)
+            if retries < 3:
+                if self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code, retries=retries+1) == "Abort":
+                    return "Abort"
+            else:
+                return "Abort"
 
 
         try:
@@ -495,7 +511,11 @@ class AirEuropa:
                 print(f'Error clicking on search button: {e}. Trying to solve the problem')
             self.driver.refresh()
             time.sleep(1)
-            self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code)
+            if retries < 3:
+                if self.fill_home_page_form(flyout, origin_name, origin_code, destination_name, destination_code, retries=retries+1) == "Abort":
+                    return "Abort"
+            else:
+                return "Abort"
         
         if self.print_ > 1:
             print('Exiting Fill Form Function')
@@ -1429,8 +1449,15 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
     flights_services = []
     flights_options = []
 
-    aireuropa.fill_home_page_form(date, origin_name, origin_code, destination_name, destination_code)
+    if aireuropa.fill_home_page_form(date, origin_name, origin_code, destination_name, destination_code) == "Abort":
+        if inputs.aireuropa_print_ > 0:
+            print('Failed to fill home page form. Aborting')
+        return
     flights = aireuropa.get_flights()
+    if flights is None or len(flights) == 0 or flights == "Abort":
+        if inputs.aireuropa_print_ > 0:
+            print('Failed to get flights. Aborting')
+        return
     flight_id_partial = date_for_id + '_' + origin_code + '-' + destination_code
 
     if inputs.aireuropa_print_ > 2:
@@ -1439,8 +1466,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
     if flights is not None:
         for i in range(0,len(flights)):
             if i != 0:
-                aireuropa.fill_home_page_form(date, origin_name, origin_code, destination_name, destination_code)
+                if aireuropa.fill_home_page_form(date, origin_name, origin_code, destination_name, destination_code) == "Abort":
+                    break
                 flights = aireuropa.get_flights()
+                if flights is None or len(flights) == 0 or flights == "Abort":
+                    break
                 if inputs.aireuropa_print_ > 2:
                     print(f'Number of flights: {len(flights)}')
             airliner, details = aireuropa.get_flight_details(flights, index = i)
@@ -1461,8 +1491,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                 break_outter = False
                 # Add logic to exclude flights that are sold out
                 observation_id = flight_id + '_' + fare
-                aireuropa.fill_home_page_form(date, origin_name, origin_code, destination_name, destination_code)
+                if aireuropa.fill_home_page_form(date, origin_name, origin_code, destination_name, destination_code) == "Abort":
+                    break
                 flights = aireuropa.get_flights()
+                if flights is None or len(flights) == 0 or flights == "Abort":
+                    break
                 if inputs.aireuropa_print_ > 2:
                     print(f'Number of flights: {len(flights)}')
                 fare_options = aireuropa.advance_to_your_selection_page(flights, i, fare)

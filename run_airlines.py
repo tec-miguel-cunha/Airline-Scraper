@@ -1,5 +1,5 @@
 import argparse
-from datetime import datetime
+import datetime
 import os
 import subprocess
 import time
@@ -23,7 +23,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    start_time = time.time()
+    start_time = datetime.datetime.now()
 
     airlines_file_name = args.airlines_file
 
@@ -39,7 +39,7 @@ if __name__ == "__main__":
         for airline in airlines:
             if airline in ['Ryanair', 'TAP', 'SwissAir', 'Iberia', 'EasyJet', 'AirEuropa', 'KLM']:
 
-                airline_start_time = time.time()
+                airline_start_time = datetime.datetime.now()
 
                 now = datetime.datetime.now()
                 yesterday = now - datetime.timedelta(days=1)
@@ -93,102 +93,110 @@ if __name__ == "__main__":
 
                     log_filenames.append(log_filename)
 
-                    if inputs.input_print_ > -1:
-                        print(f'Running main function for {airline} for index: {row_index}')
-
-                    with open(log_filename, 'w') as log_file:
-                        subprocess.run([environment, script, '--origin', origin_code, '--origin-name', origin_name, '--destination', destination_code, '--destination-name', destination_name, '--date', date], 
-                                    stdout=log_file, 
-                                    stderr=subprocess.STDOUT)
-                    
-                    if inputs.input_print_ > -1:
-                        print(f'{airline} route from {origin_name} to {destination_name} on {date} was run')
+                    try:
+                        if inputs.input_print_ > -1:
+                            print(f'Running main function for {airline} for index: {row_index}')
+                        run_time_start = datetime.datetime.now()
+                        with open(log_filename, 'w') as log_file:
+                            subprocess.run([environment, script, '--origin', origin_code, '--origin-name', origin_name, '--destination', destination_code, '--destination-name', destination_name, '--date', date], 
+                                        stdout=log_file, 
+                                        stderr=subprocess.STDOUT)
+                        run_time_end = datetime.datetime.now()
+                        run_time = run_time_end - run_time_start
+                        if inputs.input_print_ > -1:
+                            print(f'{airline} route from {origin_name} to {destination_name} on {date} was run: in {run_time}')
+                    except Exception as e:
+                        run_time_end = datetime.datetime.now()
+                        run_time = run_time_end - run_time_start
+                        if inputs.input_print_ > -1:
+                            print(f'Error running main function for {airline} for index {row_index} during {run_time}: {str(e)}')
+                        continue
                 
-                airline_end_time = time.time()
+                airline_end_time = datetime.datetime.now()
                 airline_time = airline_end_time - airline_start_time
                 if inputs.input_print_ > -1:
-                    print(f'Time taken for {airline}: {str(datetime.timedelta(seconds=airline_time))}')
+                    print(f'Time taken for {airline}: {str(airline_time)}')
         
             else:
                 if inputs.input_print_ > -1:
                     print(f'Airline {airline} not found')
                 continue
 
-        end_time = time.time()
+        end_time = datetime.datetime.now()
         total_time = end_time - start_time
         if inputs.input_print_ > -1:
-            print(f'Total time taken: {str(datetime.timedelta(seconds=total_time))}')
+            print(f'Total time taken: {str(total_time)}')
 
 
-        # Send log files to S3.
-        # Delete all the logs after sending them to S3.
-        for log_file in log_filenames:
-            if inputs.input_print_ > -1:
-                print(f'Sending log file {log_file} to S3')
-            s3_client = boto3.client('s3')
+        # # Send log files to S3.
+        # # Delete all the logs after sending them to S3.
+        # for log_file in log_filenames:
+        #     if inputs.input_print_ > -1:
+        #         print(f'Sending log file {log_file} to S3')
+        #     s3_client = boto3.client('s3')
 
-            # if file exists, send it to S3
-            if os.path.isfile(log_file):
-                try:
-                    s3_client.upload_file(log_file, 'airline_scrapper_files', os.path.basename(log_file))
-                    if inputs.input_print_ > -1:
-                        print(f'Log file {log_file} sent to S3')
+        #     # if file exists, send it to S3
+        #     if os.path.isfile(log_file):
+        #         try:
+        #             s3_client.upload_file(log_file, 'airline_scrapper_files', os.path.basename(log_file))
+        #             if inputs.input_print_ > -1:
+        #                 print(f'Log file {log_file} sent to S3')
                     
-                    os.remove(log_file)
-                    if inputs.input_print_ > -1:
-                        print(f'Log file {log_file} deleted')
-                except Exception as e:
-                    if inputs.input_print_ > -1:
-                        print(f'Error sending log file {log_file} to S3: {str(e)}')
-                    continue
-            else:
-                if inputs.input_print_ > -1:
-                    print(f'Log file {log_file} does not exist')
-                continue
+        #             os.remove(log_file)
+        #             if inputs.input_print_ > -1:
+        #                 print(f'Log file {log_file} deleted')
+        #         except Exception as e:
+        #             if inputs.input_print_ > -1:
+        #                 print(f'Error sending log file {log_file} to S3: {str(e)}')
+        #             continue
+        #     else:
+        #         if inputs.input_print_ > -1:
+        #             print(f'Log file {log_file} does not exist')
+        #         continue
 
 
-        # Send output files to S3. 
-        #   The files will be in the outputs directory of each airline. 
-        #   Only bring the ones that are dated from yesterday. 
-        #   Delete the ones from 2 days ago.
-        #   Send the ones from yesterday to S3.
-        #   Keep todays files in the outputs directory.
-        for upload_filename in outputs_filenames_to_upload:
-            if inputs.input_print_ > -1:
-                print(f'Sending output file {upload_filename} to S3')
-            s3_client = boto3.client('s3')
+        # # Send output files to S3. 
+        # #   The files will be in the outputs directory of each airline. 
+        # #   Only bring the ones that are dated from yesterday. 
+        # #   Delete the ones from 2 days ago.
+        # #   Send the ones from yesterday to S3.
+        # #   Keep todays files in the outputs directory.
+        # for upload_filename in outputs_filenames_to_upload:
+        #     if inputs.input_print_ > -1:
+        #         print(f'Sending output file {upload_filename} to S3')
+        #     s3_client = boto3.client('s3')
 
-            # if file exists, send it to S3
-            if os.path.isfile(upload_filename):
-                try:
-                    s3_client.upload_file(upload_filename, 'airline_scrapper_files', os.path.basename(upload_filename))
-                    if inputs.input_print_ > -1:
-                        print(f'Output file {upload_filename} sent to S3')
-                except Exception as e:
-                    if inputs.input_print_ > -1:
-                        print(f'Error sending output file {upload_filename} to S3: {str(e)}')
-                    continue
-            else:
-                if inputs.input_print_ > -1:
-                    print(f'Output file {upload_filename} does not exist')
-                continue
+        #     # if file exists, send it to S3
+        #     if os.path.isfile(upload_filename):
+        #         try:
+        #             s3_client.upload_file(upload_filename, 'airline_scrapper_files', os.path.basename(upload_filename))
+        #             if inputs.input_print_ > -1:
+        #                 print(f'Output file {upload_filename} sent to S3')
+        #         except Exception as e:
+        #             if inputs.input_print_ > -1:
+        #                 print(f'Error sending output file {upload_filename} to S3: {str(e)}')
+        #             continue
+        #     else:
+        #         if inputs.input_print_ > -1:
+        #             print(f'Output file {upload_filename} does not exist')
+        #         continue
         
-        for delete_filename in outputs_filenames_to_delete:
-            if inputs.input_print_ > -1:
-                print(f'Deleting output file {delete_filename}')
-            if os.path.isfile(delete_filename):
-                try:
-                    os.remove(delete_filename)
-                    if inputs.input_print_ > -1:
-                        print(f'Output file {delete_filename} deleted')
-                except Exception as e:
-                    if inputs.input_print_ > -1:
-                        print(f'Error deleting output file {delete_filename}: {str(e)}')
-                    continue
-            else:
-                if inputs.input_print_ > -1:
-                    print(f'Output file {delete_filename} does not exist')
-                continue
+        # for delete_filename in outputs_filenames_to_delete:
+        #     if inputs.input_print_ > -1:
+        #         print(f'Deleting output file {delete_filename}')
+        #     if os.path.isfile(delete_filename):
+        #         try:
+        #             os.remove(delete_filename)
+        #             if inputs.input_print_ > -1:
+        #                 print(f'Output file {delete_filename} deleted')
+        #         except Exception as e:
+        #             if inputs.input_print_ > -1:
+        #                 print(f'Error deleting output file {delete_filename}: {str(e)}')
+        #             continue
+        #     else:
+        #         if inputs.input_print_ > -1:
+        #             print(f'Output file {delete_filename} does not exist')
+        #         continue
 
 
 
