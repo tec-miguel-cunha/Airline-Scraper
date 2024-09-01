@@ -62,7 +62,7 @@ def flatten_dict_with_na(d, parent_key='', sep='_'):
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
-        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id', 'departure_city_name', 'departure_city_code','arrival_city_name', 'arrival_city_code'}:
             items.append((k, v))
             continue
         if k == 'details':
@@ -502,6 +502,8 @@ class EasyJet:
                     print(f'Error switching to new tab: {e}')
                 self.get_flights()
 
+        time.sleep(5)
+
         try: # Select FLEXI fares button with id=flexi-fares-checkbox
             if self.print_ > 1:
                 print('Selecting Flexi Fares')
@@ -628,7 +630,6 @@ class EasyJet:
             print('Exiting Get Flight Details Function')
         
         details = {
-            'date': date,
             'departure_time': departure_time,
             'arrival_time': arrival_time,
             'fares': fares,
@@ -1005,21 +1006,24 @@ class EasyJet:
 def main(origin_name, origin_code, destination_name, destination_code, date):
 
     easyjet = EasyJet(headless=True)
+    
+    airliner = 'EasyJet'
 
-    filename = 'EasyJet_' + time.strftime("%d-%m-%Y") + '.csv'
+    filename = airliner + '/' + 'outputs' + '/' + 'EasyJet_' + time.strftime("%d-%m-%Y") + '.csv'
     file_exists = os.path.isfile(filename)
     file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
-    airliner = 'EasyJet'
     flights_details = []
     flights_fares = []
     flights_seats = []
     flights_luggage = []
     sold_out = False
+    date_for_id = datetime.strptime(date, "%Y/%m/%d").strftime('%d-%m-%Y')
 
     # get the data
     easyjet.fill_home_page_form(date, origin_code, destination_code)
     flights = easyjet.get_flights()
 
+    flight_id_partial = date_for_id + '_' + origin_code + '-' + destination_code
 
     if flights is not None:
         if inputs.easyjet_print_ > 2:
@@ -1033,6 +1037,17 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                 easyjet.search_from_home_page()
                 flights = easyjet.get_flights()
             details = easyjet.get_flight_details(flights[i])
+            if details is not None:
+                if details['departure_time'] is not None and details['departure_time'] != 'N/A':
+                    flight_id = flight_id_partial + '_' + airliner + '_' + details['departure_time']
+                else:
+                    if easyjet.print_ > 0:
+                        print('An error has occured while getting flight details')
+                    continue
+            else:
+                if easyjet.print_ > 0:
+                    print('An error has occured while getting flight details')
+                continue
             flights_details.append(details)
             fares = easyjet.advance_to_seats(flights[i])
             if fares == 'Sold Out':
@@ -1047,8 +1062,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     data = {
                         'time': current_time,
                         'airliner': airliner,
-                        'flight_ID': flight_id,
-                        'observation_ID': observation_id,
+                        'origin_name': origin_name,
+                        'origin_code': origin_code,
+                        'destination_name': destination_name,
+                        'destination_code': destination_code,
+                        'date': date,
+                        'flight_id': flight_id,
+                        'observation_id': observation_id,
                         'details': details,
                         'fares': fare_sold_out,
                         'infos': luggage_sold_out,
@@ -1059,8 +1079,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     data = {
                         'time': current_time,
                         'airliner': airliner,
-                        'flight_ID': flight_id,
-                        'observation_ID': observation_id,
+                        'flight_id': flight_id,
+                        'origin_name': origin_name,
+                        'origin_code': origin_code,
+                        'destination_name': destination_name,
+                        'destination_code': destination_code,
+                        'date': date,
+                        'observation_id': observation_id,
                         'details': details,
                         'fares': 'Sold Out',
                         'infos': 'Sold Out',
@@ -1079,8 +1104,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                 data = {
                     'time': current_time,
                     'airliner': airliner,
-                    'flight_ID': flight_id,
-                    'observation_ID': observation_id,
+                    'departure_city_name': origin_name,
+                    'departure_city_code': origin_code,
+                    'arrival_city_name': destination_name,
+                    'arrival_city_code': destination_code,
+                    'date': date,
+                    'flight_id': flight_id,
+                    'observation_id': observation_id,
                     'details': details,
                     'fares': fares,
                     'infos': luggage_prices,
@@ -1109,8 +1139,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
         data = {
             'current_time': current_time,
             'airliner': airliner,
-            'flight_ID': flight_id,
-            'observation_ID': 'N/A',
+            'departure_city_name': origin_name,
+            'departure_city_code': origin_code,
+            'arrival_city_name': destination_name,
+            'arrival_city_code': destination_code,
+            'date': date,
+            'flight_id': flight_id_partial,
+            'observation_id': 'N/A',
             'details': 'No flights found',
             'fares': 'No flights found',
             'services': 'No flights found',
@@ -1130,6 +1165,8 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
 
     if easyjet.print_ > 1:
         print(flights_details)
+        print(flights_fares)
+        print(flights_luggage)
         print(flights_seats)
 
     # close the driver

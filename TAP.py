@@ -100,7 +100,7 @@ def flatten_dict_with_na(d, parent_key='', sep='_'):
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
-        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id', 'departure_city_name', 'departure_city_code', 'arrival_city_name', 'arrival_city_code'}:
             items.append((k, v))
             continue
         if k == 'details':
@@ -1123,11 +1123,15 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
 
     fares = ["Economy", "Business"]
 
-    airliner = 'TAP'
+    airliner_site = 'TAP'
     flights_details = []
     flights_seats = []
 
-    filename_partial = airliner + '_' + time.strftime("%d-%m-%Y") + '_'
+    filename_partial = airliner_site + '/' + 'outputs' + '/' + airliner_site + '_' + time.strftime("%d-%m-%Y") + '_'
+
+    date_for_id = datetime.strptime(date, "%Y/%m/%d").strftime('%d-%m-%Y')
+
+    flight_id_partial = date_for_id + '_' + origin_code + '-' + destination_code
 
     tap.fill_home_page_form(date, origin_code, destination_code)
     flights = tap.get_flights()
@@ -1141,6 +1145,16 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                 tap.fill_home_page_form(date, origin_code, destination_code)
                 flights = tap.get_flights()
             airliner, details = tap.get_flight_details(flights[i])
+            if details is not None:
+                if details['departure_time'] is not None and details['departure_time'] != 'N/A':
+                    flight_id = flight_id_partial + '_' + airliner_site + '_' + details['departure_time']
+                else:
+                    if tap.print_ > 0:
+                        print('An error has occured while getting flight details')
+            else:
+                if tap.print_ > 0:
+                    print('An error has occured while getting flight details')
+                continue
             flights_details.append(details)
             if 'Portug' in airliner:
                 for fare in fares:
@@ -1159,6 +1173,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                             data = {
                                 'current_time': current_time,
                                 'airliner': airliner,
+                                'departure_city_name': origin_name,
+                                'departure_city_code': origin_code,
+                                'arrival_city_name': destination_name,
+                                'arrival_city_code': destination_code,
+                                'date': date,
                                 'flight_id': flight_id,
                                 'observation_id': observation_id,
                                 'details': details,
@@ -1169,6 +1188,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                             data = {
                                 'current_time': current_time,
                                 'airliner': airliner,
+                                'departure_city_name': origin_name,
+                                'departure_city_code': origin_code,
+                                'arrival_city_name': destination_name,
+                                'arrival_city_code': destination_code,
+                                'date': date,
                                 'flight_id': flight_id,
                                 'observation_id': observation_id,
                                 'details': details,
@@ -1184,6 +1208,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
                             'flight_id': flight_id,
                             'observation_id': observation_id,
                             'details': details,
@@ -1211,15 +1240,38 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     file_exists = os.path.isfile(filename)
                     file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
-                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    data = {
-                        'current_time': current_time,
-                        'airliner': airliner,
-                        'flight_id': flight_id,
-                        'observation_id': observation_id,
-                        'details': details,
-                        'seats': 'N/A'
-                    }
+                    if len(flights_seats) > 1:
+                        sold_out = True
+                        seats_sold_out = flights_seats[-2]
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        data = {
+                            'current_time': current_time,
+                            'airliner': airliner,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
+                            'flight_id': flight_id,
+                            'observation_id': observation_id,
+                            'details': details,
+                            'seats': seats_sold_out
+                        }
+                    else:
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        data = {
+                            'current_time': current_time,
+                            'airliner': airliner,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
+                            'flight_id': flight_id,
+                            'observation_id': observation_id,
+                            'details': details,
+                            'seats': 'Sold Out'
+                        }
                     if file_exists and file_not_empty:
                         mode = 'a'
                         first = False
@@ -1232,13 +1284,17 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
     else:
         if tap.print_ > 0:
             print('No flights found')
-        flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(1)
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         data = {
             'current_time': current_time,
             'airliner': airliner,
-            'flight_ID': flight_id,
-            'observation_ID': 'N/A',
+            'departure_city_name': origin_name,
+            'departure_city_code': origin_code,
+            'arrival_city_name': destination_name,
+            'arrival_city_code': destination_code,
+            'date': date,
+            'flight_id': flight_id_partial,
+            'observation_id': 'N/A',
             'details': 'No flights found',
             'fares': 'No flights found',
             'services': 'No flights found',

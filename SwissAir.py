@@ -68,7 +68,7 @@ def flatten_dict_with_na(d, parent_key='', sep='_'):
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
-        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id', 'departure_city_name', 'departure_city_code','arrival_city_name', 'arrival_city_code'}:
             items.append((k, v))
             continue
         if k == 'details':
@@ -752,8 +752,8 @@ class SwissAir:
             print('Returning flight details')
 
         return airliner, {
-            'departure_flyout_time': departure_flyout_time,
-            'arrival_flyout_time': arrival_flyout_time,
+            'departure_time': departure_flyout_time,
+            'arrival_time': arrival_flyout_time,
             'price_economy': price_economy,
             'price_business': price_business
         }
@@ -1457,13 +1457,16 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
 
     swiss = SwissAir(headless=True)
 
-    airliner = "Swiss Air"
-    filename_partial = airliner.replace(' ', '') + '_' + time.strftime("%d-%m-%Y")
+    airliner_site = "SwissAir"
+    filename_partial = airliner_site.replace(' ', '') + '/' + 'outputs' + '/' + airliner_site + '_' + time.strftime("%d-%m-%Y")
     fares = ["Economy", "Business"]
     flights_details = []
     flights_seats = []
     flights_fare_options = []
     flights_services = []
+
+    date_for_id = datetime.strptime(date, "%Y/%m/%d").strftime('%d-%m-%Y')
+    flight_id_partial = date_for_id + '_' + origin_code + '-' + destination_code
 
     # Loop here for the flights inputs
     formatted_date = datetime.strptime(date, '%Y/%m/%d').strftime('%d/%m/%Y')
@@ -1473,19 +1476,16 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
             print('Aborting due to error filling home page form')
         swiss.close()
         sys.exit()
-
     flights = swiss.get_flights()
     if flights == "Abort":
         if swiss.print_ > 0:
             print('Aborting due to error getting flights')
         swiss.close()
         sys.exit()
-
     if flights is not None:
         if swiss.print_ > 2:
             print(f'Number of flights: {len(flights)}')
         for j in range(0,len(flights)):
-            flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(j+1)
             if j != 0:
                 state = swiss.fill_home_page_form(formatted_date, origin_name, destination_name)
                 if state == "Abort":
@@ -1494,6 +1494,17 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     continue
             flights = swiss.get_flights()
             airliner, details = swiss.get_flight_details(flights, j)
+            if details is not None:
+                if details['departure_time'] is not None and details['departure_time'] != 'N/A':
+                    flight_id = flight_id_partial + '_' + airliner_site + '_' + details['departure_time']
+                else:
+                    if swiss.print_ > 0:
+                        print('An error has occured while getting flight details')
+                    continue
+            else:
+                if swiss.print_ > 0:
+                    print('An error has occured while getting flight details')
+                continue
             flights_details.append(details)
             for i in range(len(fares)):
                 sold_out = False
@@ -1509,6 +1520,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
                             'flight_id': flight_id,
                             'observation_id': observation_id,
                             'details': details,
@@ -1521,8 +1537,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
-                            'flight_ID': flight_id,
-                            'observation_ID': observation_id,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
+                            'flight_id': flight_id,
+                            'observation_id': observation_id,
                             'details': details,
                             'fares': 'Sold Out',
                             'services': 'Sold Out',
@@ -1581,25 +1602,57 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
-                            'flight_ID': flight_id,
-                            'observation_ID': observation_id,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
+                            'flight_id': flight_id,
+                            'observation_id': observation_id,
                             'details': details,
                             'fares': fare_options,
                             'services': services,
                             'seats': seats
                         }
                     else:
-                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        data = {
-                            'current_time': current_time,
-                            'airliner': airliner,
-                            'flight_ID': flight_id,
-                            'observation_ID': observation_id,
-                            'details': details,
-                            'fares': fare_options, 
-                            'services': 'N/A',
-                            'seats': 'N/A'
-                        }
+                        if len(flights_fare_options) > 1 and len(flights_services) > 1 and len(flights_seats) > 1:
+                            sold_out = True
+                            fare_options_sold_out = flights_fare_options[-2]
+                            services_sold_out = flights_services[-2]
+                            seats_sold_out = flights_seats[-2]
+                            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            data = {
+                                'current_time': current_time,
+                                'airliner': airliner,
+                                'departure_city_name': origin_name,
+                                'departure_city_code': origin_code,
+                                'arrival_city_name': destination_name,
+                                'arrival_city_code': destination_code,
+                                'date': date,
+                                'flight_id': flight_id,
+                                'observation_id': observation_id,
+                                'details': details,
+                                'fares': fare_options_sold_out,
+                                'services': services_sold_out,
+                                'seats': seats_sold_out
+                            }
+                        else:
+                            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            data = {
+                                'current_time': current_time,
+                                'airliner': airliner,
+                                'departure_city_name': origin_name,
+                                'departure_city_code': origin_code,
+                                'arrival_city_name': destination_name,
+                                'arrival_city_code': destination_code,
+                                'date': date,
+                                'flight_id': flight_id,
+                                'observation_id': observation_id,
+                                'details': details,
+                                'fares': 'Sold Out',
+                                'services': 'Sold Out',
+                                'seats': 'Sold Out'
+                            }
                 filename = filename_partial + '_' + fare + '.csv'
                 file_exists = os.path.isfile(filename)
                 file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
@@ -1621,8 +1674,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
         data = {
             'current_time': current_time,
             'airliner': airliner,
-            'flight_ID': flight_id,
-            'observation_ID': 'N/A',
+            'departure_city_name': origin_name,
+            'departure_city_code': origin_code,
+            'arrival_city_name': destination_name,
+            'arrival_city_code': destination_code,
+            'date': date,
+            'flight_id': flight_id_partial,
+            'observation_id': 'N/A',
             'details': 'No flights found',
             'fares': 'No flights found',
             'services': 'No flights found',
@@ -1646,6 +1704,8 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
 
     if swiss.print_ > 2:
         print(flights_details)
+        print(flights_fare_options)
+        print(flights_services)
         print(flights_seats)
 
     # close the driver

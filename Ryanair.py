@@ -48,7 +48,7 @@ def flatten_dict_with_na(d, parent_key='', sep='_'):
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
-        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id', 'departure_city_name', 'departure_city_code','arrival_city_name', 'arrival_city_code'}:
             items.append((k, v))
             continue
         if k == 'details':
@@ -88,6 +88,12 @@ def write_to_csv_row(writer, data, first=False, sold_out=False):
         # Write the header row
         header = list(flattened_data.keys())
         writer.writerow(header)
+    
+    row = list(flattened_data.values())
+    # Write the row to the CSV file
+    writer.writerow(row)
+    if inputs.easyjet_print_ > 1:
+        print('Wrote flattened data')
 
 
 def check_and_close_popup(driver):
@@ -375,7 +381,6 @@ class RyanAir:
                 print(f'Error getting price: {e}')
         
         details = {
-            'date': departure_date,
             'departure_time': departure_flyout_times,
             'arrival_time': arrival_flyout_times,
             'price': price
@@ -433,9 +438,15 @@ class RyanAir:
                         if (i == 1 and (letter == 'D' or letter == 'E' or letter == 'F')):
                             continue
                         if (i < 10):
-                            seat = self.driver.find_element(By.CSS_SELECTOR, f"[id*='seat-0{i}{letter}']")
+                            if check_element_exists_by_CSS_SELECTOR(seatmap, f"[id*='seat-0{i}{letter}']", self.timeout_little):
+                                seat = self.driver.find_element(By.CSS_SELECTOR, f"[id*='seat-0{i}{letter}']")
+                            else:
+                                continue
                         else:
-                            seat = self.driver.find_element(By.CSS_SELECTOR, f"[id*='seat-{i}{letter}']")
+                            if check_element_exists_by_CSS_SELECTOR(seatmap, f"[id*='seat-{i}{letter}']", self.timeout_little):
+                                seat = self.driver.find_element(By.CSS_SELECTOR, f"[id*='seat-{i}{letter}']")
+                            else:
+                                continue
                         if ((i == 1 and (letter == 'A' or letter == 'B' or letter == 'C')) or (i == 2 and (letter == 'D' or letter == 'E' or letter == 'F'))):
                             availability = self.check_seat_availability(seat)
                             if availability == 'available':
@@ -1045,13 +1056,18 @@ class RyanAir:
 def main(origin_name, origin_code, destination_name, destination_code, date):
     
     ryanair = RyanAir(headless=True)
+    airliner = 'Ryanair'
 
-    filename = 'RyanAir_' + time.strftime("%d-%m-%Y") + '.csv'
+    filename = airliner + '/' + 'outputs' + '/' + airliner + '_' + time.strftime("%d-%m-%Y") + '.csv'
     file_exists = os.path.isfile(filename)
     file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
-    airliner = 'Ryanair'
     flights_details = []
+    flights_fares = []
+    flights_luggage = []
     flights_seats = []
+
+    date_for_id = datetime.strptime(date, "%Y/%m/%d").strftime('%d-%m-%Y')
+    flight_id_partial = date_for_id + '_' + origin_code + '-' + destination_code
     
     # get the data
     flights = ryanair.get_flights(date, origin_code, destination_code)
@@ -1060,27 +1076,39 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
         if inputs.ryanair_print_ > 2:
             print(f'Number of flights: {len(flights)}')
     else:
-        ryanair.fill_home_page_form(origin_name, origin_code, destination_name, destination_code, date)
         flights = ryanair.get_flights(date, origin_code, destination_code, from_home_page=True)
 
     fare_name = ''
 
     if flights is not None:
         for i in range(0, len(flights)):
-            flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
-            observation_ID = flight_id + fare_name
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             if not i == 0:
                 flights = ryanair.get_flights(date, origin_code, destination_code)
             details = ryanair.get_flight_details(flights[i])
+            if details is not None:
+                if details['departure_time'] is not None and details['departure_time'] != 'N/A':
+                    flight_id = flight_id_partial + '_' + airliner + '_' + details['departure_time']
+                    observation_id = flight_id + fare_name
+                else:
+                    if ryanair.print_ > 0:
+                        print('An error has occured while getting flight details')
+                    continue
+            else:
+                if ryanair.print_ > 0:
+                    print('An error has occured while getting flight details')
+                continue
             flights_details.append(details)
             fares = ryanair.fill_form_flights_page()
+            flights_fares.append(fares)
             if ryanair.decide_seats_or_bags_page() == 'seats':
                 seats = ryanair.get_flight_seats()
                 flights_seats.append(seats)
                 luggage_prices = ryanair.get_info_luggage_page()
+                flights_luggage.append(luggage_prices)
             elif ryanair.decide_seats_or_bags_page() == 'luggage':
                 luggage_prices = ryanair.get_info_luggage_page()
+                flights_luggage.append(luggage_prices)
                 seats = ryanair.get_flight_seats()
                 flights_seats.append(seats)
             else:
@@ -1091,8 +1119,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
             data = {
                 'current_time': current_time,
                 'airliner': airliner,
+                'departure_city_name': origin_name,
+                'departure_city_code': origin_code,
+                'arrival_city_name': destination_name,
+                'arrival_city_code': destination_code,
+                'date': date,
                 'flight_id': flight_id,
-                'observation_id': observation_ID,
+                'observation_id': observation_id,
                 'details': details,
                 'fares': fares,
                 'infos': luggage_prices,
@@ -1116,7 +1149,7 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
         if ryanair.print_ > 0:
             print('No flights found. Assuming that the flights are sold out.')
         flight_id = date.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
-        observation_ID = flight_id + fare_name
+        observation_id = flight_id + fare_name
         current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         details = 'NO DATA FOUND'
         fares = 'NO DATA FOUND'
@@ -1126,8 +1159,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
         data = {
             'current_time': current_time,
             'airliner': airliner,
-            'flight_id': flight_id,
-            'observation_id': observation_ID,
+            'departure_city_name': origin_name,
+            'departure_city_code': origin_code,
+            'arrival_city_name': destination_name,
+            'arrival_city_code': destination_code,
+            'date': date,
+            'flight_id': flight_id_partial,
+            'observation_id': observation_id,
             'details': details,
             'fares': fares,
             'infos': luggage_prices,

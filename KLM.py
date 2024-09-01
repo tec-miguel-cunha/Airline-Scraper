@@ -1,4 +1,5 @@
 # import libraries
+import argparse
 import os
 import threading
 import urllib3
@@ -33,17 +34,17 @@ if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
 }
 """
 
-current_origin = "Amsterdam"
-current_origin_code = "AMS"
-current_destination = "Zurich"
-current_destination_code = "ZRH"
-current_flyout_date = "09/09/2024"
-current_fare_name = "Economy"
+current_origin = ''
+current_origin_code = ''
+current_destination = ''
+current_destination_code = ''
+current_flyout_date = ''
+current_fare_name = ''
 current_flights = []
 current_index = 0
 
 def flatten_dict(d, parent_key='', sep='_'):
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print('Flattening dictionary')
     items = []
     for k, v in d.items():
@@ -62,153 +63,187 @@ def flatten_dict(d, parent_key='', sep='_'):
                         items.append((f"{new_key}_{i}", item))
         else:
             items.append((new_key, v))
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print('Returning items from falatten_dict')
     return dict(items)
 
-def write_to_csv_row(writer, data, first=False):
-    if inputs.input_print_ > 1:
+def flatten_dict_with_na(d, parent_key='', sep='_'):
+    if inputs.klm_print_ > 1:
+        print('Flattening dictionary')
+    items = []
+    for k, v in d.items():
+        if k in {'current_time', 'airliner', 'flight_id', 'observation_id'}:
+            items.append((k, v))
+            continue
+        if k == 'details':
+            flattened_details = flatten_dict(v)
+            items.append((k, flattened_details))
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        elif isinstance(v, list):
+            if len(v) == 1 and isinstance(v[0], dict):
+                # Flatten the single dictionary element in the list
+                items.extend(flatten_dict(v[0], new_key, sep=sep).items())
+            else:
+                for i, item in enumerate(v):
+                    if isinstance(item, dict):
+                        items.extend(flatten_dict(item, f"{new_key}_{i}", sep=sep).items())
+                    else:
+                        items.append((f"{new_key}_{i}", 'N/A'))
+        else:
+            items.append((new_key, 'N/A'))
+    if inputs.klm_print_ > 1:
+        print('Returning items from falatten_dict')
+    return dict(items)
+
+def write_to_csv_row(writer, data, first=False, sold_out=False):
+    if inputs.klm_print_ > 1:
         print('Writing to CSV row')
     # Flatten the details and seats data
-    flattened_data = flatten_dict(data)
+    if sold_out:
+        flattened_data = flatten_dict_with_na(data)
+        flattened_data = flatten_dict(flattened_data)
+    else:
+        flattened_data = flatten_dict(data)
     if first:
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print('Writing header row')
         # Write the header row
         header = list(flattened_data.keys())
         writer.writerow(header)
-
+    
     row = list(flattened_data.values())
     # Write the row to the CSV file
     writer.writerow(row)
-    if inputs.input_print_ > 1:
+    if inputs.iberia_print_ > 1:
         print('Wrote flattened data')
 
 def check_and_close_popup(driver):
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print('Checking and closing popup')
     try:
         # Check for overlay element
-        overlay = WebDriverWait(driver, timeout=inputs.input_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
+        overlay = WebDriverWait(driver, timeout=inputs.klm_timeout_cookies).until(EC.presence_of_element_located((By.CSS_SELECTOR, "[class*='rtm-overlay']")))
         if overlay:
             # Find and click the close button
             close_button = overlay.find_element(By.CSS_SELECTOR, "[class*='close-sc closeStyle1-sc']")
             if close_button:
                 close_button.click()
-                if inputs.input_print_ > 1:
+                if inputs.klm_print_ > 1:
                     print('Overlay closed')
         else:
-            if inputs.input_print_ > 1:
+            if inputs.klm_print_ > 1:
                 print('No overlay found')
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.klm_print_ > 0:
             print(f'Exception occurred: {e}')
 
 def is_element_in_view(driver, element):
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print('Checking if element is in view')
     # Check if the element is displayed
     if element.is_displayed():
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print('Element is displayed')
         return True
     else:
         # Scroll the element into view
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print('Trying to scroll element into view')
         driver.execute_script("arguments[0].scrollIntoView();", element)
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print('Scrolled element into view')
         # Check again if the element is displayed after scrolling
         return element.is_displayed()
 
-def check_element_exists_by_ID(driver, id, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_ID(driver, id, timeout=inputs.klm_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print(f'Checking if element exists by ID: {id}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.ID, id)))
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.klm_print_ > 0:
             print(f'No element by ID: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.klm_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print(f'Checking if element exists by CSS: {css}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print('Element exists')
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.klm_print_ > 0:
             print(f'No element by CSS Selector: {e}')
         element_exists = False
     return element_exists
 
-def check_element_NOT_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.input_timeout_checks):
+def check_element_NOT_exists_by_CSS_SELECTOR(driver, css, timeout=inputs.klm_timeout_checks):
     element_not_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print(f'Checking if element not exists by CSS: {css}')
     try:
         WebDriverWait(driver, timeout=timeout).until_not(EC.presence_of_element_located((By.CSS_SELECTOR, css)))
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print("Passed WebDriverWait")
         element_not_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.klm_print_ > 0:
             print(f'Element exists by CSS Selector: {e}')
         element_not_exists = False
     return element_not_exists
 
-def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_TAG_NAME(driver, tag, timeout=inputs.klm_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print(f'Checking if element exists by Tag Name: {tag}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.TAG_NAME, tag)))
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.klm_print_ > 0:
             print(f'No element by Tag Name: {e}')
         element_exists = False
     return element_exists
 
-def check_element_exists_by_XPATH(driver, xpath, timeout=inputs.input_timeout_checks):
+def check_element_exists_by_XPATH(driver, xpath, timeout=inputs.klm_timeout_checks):
     element_exists = False
-    if inputs.input_print_ > 1:
+    if inputs.klm_print_ > 1:
         print(f'Checking if element exists by XPATH: {xpath}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print("Passed WebDriverWait")
         element_exists = True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.klm_print_ > 0:
             print(f'No element by XPATH: {e}')
         element_exists = False
     return element_exists
 
-def check_and_wait_for_URL(driver, url, timeout=inputs.input_timeout):
-    if inputs.input_print_ > 1:
+def check_and_wait_for_URL(driver, url, timeout=inputs.klm_timeout):
+    if inputs.klm_print_ > 1:
         print(f'Checking and waiting for URL: {url}')
     try:
         WebDriverWait(driver, timeout=timeout).until(EC.url_to_be(url))
-        if inputs.input_print_ > 1:
+        if inputs.klm_print_ > 1:
             print("Passed WebDriverWait")
         return True
     except Exception as e:
-        if inputs.input_print_ > 0:
+        if inputs.klm_print_ > 0:
             print(f'URL not found: {e}')
         return False
 
@@ -216,11 +251,11 @@ class KLM:
 
     def __init__(self, headless=True):
 
-        self.timeout = inputs.input_timeout
-        self.timeout_cookies = inputs.input_timeout_cookies
-        self.timeout_little = inputs.input_timeout_little
-        self.timeout_implicitly_wait = inputs.input_timeout_implicitly_wait
-        self.print_ = inputs.input_print_
+        self.timeout = inputs.klm_timeout
+        self.timeout_cookies = inputs.klm_timeout_cookies
+        self.timeout_little = inputs.klm_timeout_little
+        self.timeout_implicitly_wait = inputs.klm_timeout_implicitly_wait
+        self.print_ = inputs.klm_print_
         self.cookies = 'not accepted'
         self.GDPR = 'not accepted'
         self.closed_popup_cabin_bags = False
@@ -241,7 +276,7 @@ class KLM:
         else:
             self.driver = uc.Chrome()
         if self.print_ > 1:
-            print('Initialized SwissAir')
+            print('Initialized KLM')
 
     def click_with_retry(self, element, retries=3, delay=1):
         if self.print_ > 1:
@@ -286,7 +321,7 @@ class KLM:
             print('Failed to click all buttons after retries')
         return False
 
-    def get_element_by_CSS_SELECTOR(self, element, css, timeout=inputs.input_timeout_checks):
+    def get_element_by_CSS_SELECTOR(self, element, css, timeout=inputs.klm_timeout_checks):
         if self.print_ > 1:
             print(f'Getting element by CSS: {css}')
         try:
@@ -299,7 +334,7 @@ class KLM:
                 print(f'No element by CSS Selector: {e}')
             return None
 
-    def fill_home_page_form(self, flyout, orig, dest, repeat=True):
+    def fill_home_page_form(self, flyout, orig, dest, repeat=True, retreis=0):
         if self.print_ > 1:
             print('Entering Fill Form Function')
         # set url
@@ -348,6 +383,14 @@ class KLM:
                 else:
                     if self.print_ > 1:
                         print('No button to open home page form found')
+                    if retreis < 3:
+                        self.driver.refresh()
+                        time.sleep(5)
+                        return self.fill_home_page_form(flyout, orig, dest, retreis=retreis+1)
+                    else:
+                        if self.print_ > 0:
+                            print('Failed to open home page form after retries')
+                        return "Abort"
             except Exception as e:
                 if self.print_ > 0:
                     print(f'Error opening rest of home page form: {e}')
@@ -404,12 +447,12 @@ class KLM:
                 if self.print_ > 1:
                     print('Trying to open calendar')
                 if check_element_exists_by_TAG_NAME(self.driver, 'bw-datepicker'):
-                    input_div = self.driver.find_element(By.TAG_NAME, 'bw-datepicker')
+                    klm_div = self.driver.find_element(By.TAG_NAME, 'bw-datepicker')
                     if self.print_ > 1:
                         print('Found input div')
-                    if check_element_exists_by_CSS_SELECTOR(input_div, "[class*='mat-mdc-text-field-wrapper']"):
-                        input_field = input_div.find_element(By.CSS_SELECTOR, "[class*='mat-mdc-text-field-wrapper']")
-                        self.click_with_retry(input_field)
+                    if check_element_exists_by_CSS_SELECTOR(klm_div, "[class*='mat-mdc-text-field-wrapper']"):
+                        klm_field = klm_div.find_element(By.CSS_SELECTOR, "[class*='mat-mdc-text-field-wrapper']")
+                        self.click_with_retry(klm_field)
                         if self.print_ > 1:
                             print('Clicked to open calendar')
                     else:
@@ -463,8 +506,8 @@ class KLM:
 
         try:
             if self.print_ > 1:
-                print('Trying to click search button')
-            if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test='bwsfe-widget__search-button']"):
+                print('Trying to open rest of home page form')
+            if check_element_exists_by_CSS_SELECTOR(self.driver, "[data-test='bwsfe-widget__search-button']", self.timeout):
                 search_button = self.driver.find_element(By.CSS_SELECTOR, "[data-test='bwsfe-widget__search-button']")
                 self.click_with_retry(search_button)
                 if self.print_ > 1:
@@ -472,10 +515,18 @@ class KLM:
             else:
                 if self.print_ > 1:
                     print('No search button found')
+                if retreis < 3:
+                    self.driver.refresh()
+                    time.sleep(5)
+                    return self.fill_home_page_form(flyout, orig, dest, retreis=retreis+1)
+                else:
+                    if self.print_ > 0:
+                        print('Failed click search button after retries')
+                    return "Abort"
         except Exception as e:
             if self.print_ > 0:
                 print(f'Exception occurred trying to click search button: {e}')
-
+            return "Abort"
 
         if self.print_ > 1:
             print('Exiting fill home page form function')
@@ -567,6 +618,8 @@ class KLM:
 
         departure_flyout_time = 'N/A'
         arrival_flyout_time = 'N/A'
+        price_economy = 'N/A'
+        price_business = 'N/A'
 
         try:
             if self.print_ > 1:
@@ -619,7 +672,8 @@ class KLM:
         try:
             if check_element_exists_by_TAG_NAME(flight, 'bwc-carrier-logo'):
                 carrier_logo = flight.find_element(By.TAG_NAME, 'bwc-carrier-logo')
-                airliner = carrier_logo.get_attribute('alt')
+                image = carrier_logo.find_element(By.TAG_NAME, 'img')
+                airliner = image.get_attribute('alt')
                 if self.print_ > 1:
                     print(f'Got carrier name: {airliner}')
             else:
@@ -632,8 +686,8 @@ class KLM:
             print('Returning flight details')
 
         details = {
-            'departure_flyout_time': departure_flyout_time,
-            'arrival_flyout_time': arrival_flyout_time,
+            'departure_time': departure_flyout_time,
+            'arrival_time': arrival_flyout_time,
             'price_economy': price_economy,
             'price_business': price_business
         }
@@ -641,6 +695,7 @@ class KLM:
         return airliner, details
     
     def advance_to_your_selection_page(self, flights = current_flights, index = current_index, fare_name = current_fare_name):
+
         if self.print_ > 1:
             print('Entering function to advance to your selection page')
 
@@ -657,12 +712,12 @@ class KLM:
                     if not self.click_with_retry(fares_buttons[0]):
                         if self.print_ > 0:
                             print('Failed to click on Economy fare')
-                        return "Continue"
+                        return "Sold Out"
                 else:
                     if not self.click_with_retry(fares_buttons[1]):
                         if self.print_ > 0:
                             print('Failed to click on Business fare')
-                        return "Continue"
+                        return "Sold Out"
                 if self.print_ > 1:
                     print('Got prices')
             else:
@@ -1407,101 +1462,251 @@ class KLM:
         self.driver.quit()
 
 
-if __name__ == "__main__":
-        
+def main(origin_name, origin_code, destination_name, destination_code, date):
+
+
     klm = KLM(headless=False)
-    filename = 'KLM_' + time.strftime("%d-%m-%Y") + '.csv'
-    file_exists = os.path.isfile(filename)
-    file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
-    airliner = 'KLM'
+
+    airliner_site = "KLM"
+    filename_partial = airliner_site.replace(' ', '') + '/'  + 'outputs' + '/' + airliner_site + '_' + time.strftime("%d-%m-%Y")
+
+    date_for_id = datetime.strptime(date, "%Y/%m/%d").strftime('%d-%m-%Y')
+
+    flight_id_partial = date_for_id + '_' + origin_code + '-' + destination_code
+
     flights_details = []
+    flights_fares = []
+    flights_infos = []
     flights_seats = []
-    flyout = current_flyout_date
-    origin_code = current_origin_code
-    origin_name = current_origin
-    destination_code = current_destination_code
-    destination_name = current_destination
-    fare_name = current_fare_name
+    
+    flyout = datetime.strptime(date, '%Y/%m/%d').strftime('%d/%m/%Y')
 
     fare_names = ['Economy', 'Business']
 
-    klm.fill_home_page_form(flyout=flyout, orig=origin_name, dest=destination_name, repeat=False)
+    if klm.fill_home_page_form(flyout=flyout, orig=origin_name, dest=destination_name, repeat=False) == "Abort":
+        if klm.print_ > 0:
+            print('Closing driver due to error filling home page form. Going to open a new one')
+        klm.close()
+        klm = KLM(headless=False)
+        if klm.fill_home_page_form(flyout=flyout, orig=origin_name, dest=destination_name) == "Abort":
+            if klm.print_ > 0:
+                print('Aborting due to error filling home page form')
+            return
+        else:
+            if klm.print_ > 2:
+                print('Filled home page form at second attempt')
+    else:
+        if klm.print_ > 2:
+            print('Filled home page form at first attempt')
 
     flights = klm.get_flights()
     current_flights = flights
 
-    # if flights == "Error":
-    #     print("Error")
-    #     klm.driver.quit()
-    #     klm = KLM(headless=False)
-    #     flights = klm.get_to_flights(flyout=flyout, orig_name=origin_name, orig=origin_code, dest_name=destination_name, dest=destination_code, repeat=False)
-    #     if flights == "Error":
-    #         print("Error")
-    #         klm.driver.quit()
-    #         exit()
-    if klm.print_ > 2:
-        print(f'Found {len(flights)} flights')
-
     if flights is not None:
+        if klm.print_ > 2:
+            print(f'Found {len(flights)} flights')
         for i in range(len(flights)):
             flight_id = flyout.replace('/', '-') + '_' + origin_code + '-' + destination_code + '_' + str(i+1)
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            current_index = i
             for j in range(len(fare_names)):
-                observation_id = f'{flight_id}_{fare_names[j]}'
+                sold_out = False
                 current_fare_name = fare_names[j]
+                fare_name = fare_names[j]
                 if not (i == 0 and j == 0):
-                    klm.fill_home_page_form(flyout=flyout, orig=origin_name, dest=destination_name)
+                    if klm.fill_home_page_form(flyout=flyout, orig=origin_name, dest=destination_name) == "Abort":
+                        if klm.print_ > 0:
+                            print('Aborting due to error filling home page form')
+                        return
                     flights = klm.get_flights()
                     current_flights = flights
                 airliner, details = klm.get_flight_details(flights, index = i)
-                flights_details.append(details)
-                fares = klm.advance_to_your_selection_page(flights, index = i, fare_name = fare_names[j])
-                if fares == "Continue":
-                    data = {
-                        'time': current_time,
-                        'airliner': airliner,
-                        'flight_ID': flight_id,
-                        'observation_id': observation_id,
-                        'details': details,
-                    }
-                else:
-                    klm.advance_to_passenger_form()
-                    klm.fill_passenger_form()
-                    infos = klm.get_bags_and_info()
-                    klm.get_to_seats_page()
-                    seats = klm.get_seats(fare_name=current_fare_name)
-                    flights_seats.append(seats)
-                    data = {
-                        'time': current_time,
-                        'airliner': airliner,
-                        'flight_ID': flight_id,
-                        'observation_id': observation_id,
-                        'details': details,
-                        'fares': fares,
-                        'infos': infos,
-                        'seats': seats
-                }
-                if(i == 0 and j == 0):
-                    if file_exists and file_not_empty:
-                        mode = 'a'
-                        first = False
+                if details is not None:
+                    if details['departure_time'] is not None and details['departure_time'] != 'N/A':
+                        flight_id = flight_id_partial + '_' + airliner_site + '_' + details['departure_time']
+                        observation_id = f'{flight_id}_{fare_names[j]}'
                     else:
-                        mode = 'w'
-                        first = True
-                    with open(filename, mode=mode, newline='') as file:
-                        writer = csv.writer(file)
-                        write_to_csv_row(writer, data, first)
+                        if klm.print_ > 0:
+                            print('An error has occured while getting flight details')
+                        continue
                 else:
-                    with open(filename, mode='a', newline='') as file:
-                        writer = csv.writer(file)
-                        write_to_csv_row(writer, data)
+                    if klm.print_ > 0:
+                        print('An error has occured while getting flight details')
+                    continue
+                if 'KLM' in airliner:
+                    flights_details.append(details)
+                    fares = klm.advance_to_your_selection_page(flights, index = i, fare_name = fare_names[j])
+                    if fares == "Sold Out":
+                        if len(flights_fares) > 1 and len(flights_infos) > 1 and len(flights_seats) > 1:
+                            sold_out = True
+                            fare_sold_out = flights_fares[-2]
+                            info_sold_out = flights_infos[-2]
+                            seats_sold_out = flights_seats[-2]
+                            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            data = {
+                                'time': current_time,
+                                'airliner': airliner,
+                                'departure_city_name': origin_name,
+                                'departure_city_code': origin_code,
+                                'arrival_city_name': destination_name,
+                                'arrival_city_code': destination_code,
+                                'date': date,
+                                'flight_id': flight_id,
+                                'observation_id': observation_id,
+                                'details': details,
+                                'fares': fare_sold_out,
+                                'infos': info_sold_out,
+                                'seats': seats_sold_out
+                            }
+                        else:
+                            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            data = {
+                                'time': current_time,
+                                'airliner': airliner,
+                                'departure_city_name': origin_name,
+                                'departure_city_code': origin_code,
+                                'arrival_city_name': destination_name,
+                                'arrival_city_code': destination_code,
+                                'date': date,
+                                'flight_id': flight_id,
+                                'observation_id': observation_id,
+                                'details': details,
+                                'fares': 'Sold Out',
+                                'infos': 'Sold Out',
+                                'seats': 'Sold Out',
+                            }
+                    else:
+                        flights_fares.append(fares)
+                        klm.advance_to_passenger_form()
+                        klm.fill_passenger_form()
+                        infos = klm.get_bags_and_info()
+                        flights_infos.append(infos)
+                        klm.get_to_seats_page()
+                        seats = klm.get_seats(fare_name=current_fare_name)
+                        flights_seats.append(seats)
+                        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        data = {
+                            'time': current_time,
+                            'airliner': airliner,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
+                            'flight_id': flight_id,
+                            'observation_id': observation_id,
+                            'details': details,
+                            'fares': fares,
+                            'infos': infos,
+                            'seats': seats
+                        }
+                else:
+                    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    data = {
+                        'time': current_time,
+                        'airliner': airliner,
+                        'departure_city_name': origin_name,
+                        'departure_city_code': origin_code,
+                        'arrival_city_name': destination_name,
+                        'arrival_city_code': destination_code,
+                        'date': date,
+                        'flight_id': flight_id,
+                        'observation_id': observation_id,
+                        'details': details,
+                        'fares': 'No information available',
+                        'infos': 'No information available',
+                        'seats': 'No information available',
+                    }
+
+                filename = filename_partial + '_' + fare_name + '.csv'
+                file_exists = os.path.isfile(filename)
+                file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+                if file_exists and file_not_empty:
+                    mode = 'a'
+                    first = False
+                else:
+                    mode = 'w'
+                    first = True
+                with open(filename, mode=mode, newline='') as file:
+                    writer = csv.writer(file)
+                    write_to_csv_row(writer, data, first, sold_out=sold_out)
+
+    else:
+        if klm.print_ > 0:
+            print('No flights found')
+        if len(flights_fares) > 1 and len(flights_infos) > 1 and len(flights_seats) > 1:
+            sold_out = True
+            fare_options_sold_out = flights_fares[-2]
+            services_sold_out = flights_infos[-2]
+            seats_sold_out = flights_seats[-2]
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            data = {
+                'current_time': current_time,
+                'airliner': airliner,
+                'departure_city_name': origin_name,
+                'departure_city_code': origin_code,
+                'arrival_city_name': destination_name,
+                'arrival_city_code': destination_code,
+                'date': date,
+                'flight_id': flight_id,
+                'observation_id': observation_id,
+                'details': details,
+                'fares': fare_options_sold_out,
+                'services': services_sold_out,
+                'seats': seats_sold_out
+            }
+        else:
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            data = {
+                'current_time': current_time,
+                'airliner': airliner,
+                'departure_city_name': origin_name,
+                'departure_city_code': origin_code,
+                'arrival_city_name': destination_name,
+                'arrival_city_code': destination_code,
+                'date': date,
+                'flight_id': flight_id,
+                'observation_id': observation_id,
+                'details': details,
+                'fares': 'Sold Out',
+                'services': 'Sold Out',
+                'seats': 'Sold Out'
+            }
+
+        for fare in fares:
+            filename = filename_partial + '_' + fare + '.csv'
+            file_exists = os.path.isfile(filename)
+            file_not_empty = os.path.getsize(filename) > 0 if file_exists else False
+            if file_exists and file_not_empty:
+                mode = 'a'
+                first = False
+            else:
+                mode = 'w'
+                first = True
+            with open(filename, mode=mode, newline='') as file:
+                writer = csv.writer(file)
+                write_to_csv_row(writer, data, first)
+        
 
     if klm.print_ > 2:
         print(flights_details)
+        print(flights_fares)
+        print(flights_infos)
         print(flights_seats)
 
     klm.close()
+
+if __name__ == "__main__":
+        
+    parser = argparse.ArgumentParser(description="Get information about flights page form for KLM")
+
+    parser.add_argument('--origin-name', required=False, help='Origin airport name')
+    parser.add_argument('--origin', required=True, help='Origin airport code')
+    parser.add_argument('--destination-name', required=False, help='Destination airport name')
+    parser.add_argument('--destination', required=True, help='Destination airport code')
+    parser.add_argument('--date', required=True, help='Flight date in YYYYY/MM/DD format')
+
+    args = parser.parse_args()
+
+    main(origin_name=args.origin_name, origin_code=args.origin, destination_name=args.destination_name, destination_code=args.destination, date=args.date)
            
 
 

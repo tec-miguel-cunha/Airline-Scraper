@@ -1166,7 +1166,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
     iberia = Iberia(headless=False)
     
     airliner = 'Iberia'
-    filename_partial = airliner + '_' + time.strftime("%d-%m-%Y")
+    filename_partial = airliner + '/' + 'outputs' + '/' + airliner + '_' + time.strftime("%d-%m-%Y")
+
+    date_for_id = datetime.strptime(date, "%Y/%m/%d").strftime('%d-%m-%Y')
+
+    flight_id_partial = date_for_id + '_' + origin_code + '-' + destination_code
 
     flights_details = []
     flights_seats = []
@@ -1197,7 +1201,6 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
             for j in range(len(fare_names)):
                 sold_out = False
                 current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                observation_id = f'{flight_id}_{fare_names[j]}'
                 fare_name = fare_names[j]
                 if not (i == 0 and j == 0):
                     flights = iberia.get_to_flights(flyout=flyout, orig_name=origin_name, orig=origin_code, dest_name=destination_name, dest=destination_code)
@@ -1211,6 +1214,18 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                             iberia.driver.quit()
                             exit()
                 details = iberia.get_flight_details(flights, index = i)
+                if details is not None:
+                    if details['departure_time'] is not None and details['departure_time'] != 'N/A':
+                        flight_id = flight_id_partial + '_' + airliner + '_' + details['departure_time']
+                        observation_id = f'{flight_id}_{fare_names[j]}'
+                    else:
+                        if iberia.print_ > 0:
+                            print('An error has occured while getting flight details')
+                        continue
+                else:
+                    if iberia.print_ > 0:
+                        print('An error has occured while getting flight details')
+                    continue
                 if details['prices'][j]['price'] == 'Sold Out': 
                     if len(flights_seats) > 1 and len(flights_fares) > 1 and len(flights_infos) > 1:
                         sold_out = True
@@ -1221,6 +1236,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
                             'flight_id': flight_id,
                             'observation_id': observation_id,
                             'details': details,
@@ -1233,6 +1253,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                         data = {
                             'current_time': current_time,
                             'airliner': airliner,
+                            'departure_city_name': origin_name,
+                            'departure_city_code': origin_code,
+                            'arrival_city_name': destination_name,
+                            'arrival_city_code': destination_code,
+                            'date': date,
                             'flight_id': flight_id,
                             'observation_id': observation_id,
                             'details': details,
@@ -1253,6 +1278,11 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
                     data = {
                         'current_time': current_time,
                         'airliner': airliner,
+                        'departure_city_name': origin_name,
+                        'departure_city_code': origin_code,
+                        'arrival_city_name': destination_name,
+                        'arrival_city_code': destination_code,
+                        'date': date,
                         'flight_id': flight_id,
                         'observation_id': observation_id,
                         'details': details,
@@ -1278,8 +1308,13 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
         data = {
             'current_time': current_time,
             'airliner': airliner,
-            'flight_ID': flight_id,
-            'observation_ID': 'N/A',
+            'departure_city_name': origin_name,
+            'departure_city_code': origin_code,
+            'arrival_city_name': destination_name,
+            'arrival_city_code': destination_code,
+            'date': date,
+            'flight_id': flight_id_partial,
+            'observation_id': 'N/A',
             'details': 'No flights found',
             'fares': 'No flights found',
             'services': 'No flights found',
@@ -1301,6 +1336,8 @@ def main(origin_name, origin_code, destination_name, destination_code, date):
 
     if iberia.print_ > 2:
         print(flights_details)
+        print(flights_fares)
+        print(flights_infos)
         print(flights_seats)
 
     iberia.driver.quit()
@@ -1318,8 +1355,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    current_destination = args.destination_name
     current_origin = args.origin_name
+    current_destination = args.destination_name
+    current_origin_code = args.origin
+    current_destination_code = args.destination
     current_flyout_date = args.date
     current_fare_name = 'Economy'
 

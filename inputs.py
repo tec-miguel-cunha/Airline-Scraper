@@ -6,7 +6,7 @@ input_timeout_cookies = 1.5
 # Swiss has a 0.2 timeout_little. Consider adding micro. placing at 5 for iberia
 input_timeout_retry_click = 1.5
 input_timeout_little = 5
-input_timeout_checks = 4
+input_timeout_checks = 10
 input_timeout_implicitly_wait = 5
 input_cookies = "not accepted"
 
@@ -78,3 +78,15 @@ klm_timeout_checks = 4
 klm_timeout_implicitly_wait = 5
 klm_cookies = "not accepted"
 klm_retries = 3
+
+# JUST LOGGING THIS FOR NOW
+aireuropa_print_ = 3
+aireuropa_timeout = 30
+aireuropa_timeout_cookies = 1.5
+aireuropa_timeout_retry_click = 1.5
+aireuropa_timeout_little = 5
+aireuropa_timeout_micro = 1
+aireuropa_timeout_checks = 5
+aireuropa_timeout_implicitly_wait = 5
+aireuropa_cookies = "not accepted"
+aireuropa_retries = 3
